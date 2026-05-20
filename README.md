@@ -95,6 +95,16 @@ Click a chord card to cycle its fingering. The active chord card can also be cli
 
 ## Running The App
 
+### Public GitHub Pages Site
+
+The app is configured for GitHub Pages with GitHub Actions. After Pages is enabled for the repository, pushes to `main` deploy the static app automatically.
+
+Expected public URL:
+
+```text
+https://techtony2018.github.io/Chord-Strumming-Trainer/
+```
+
 ### Simple Static Mode
 
 Open `index.html` directly in a browser.
