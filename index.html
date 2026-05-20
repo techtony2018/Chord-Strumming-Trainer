@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chord Strumming Trainer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="metronome-panel" aria-label="Strumming metronome">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Chord Strumming Trainer</p>
+            <h1>Chord Strumming Trainer</h1>
+          </div>
+          <button class="icon-button" id="tapTempoButton" type="button" title="Tap tempo" aria-label="Tap tempo">
+            <span aria-hidden="true">TAP</span>
+          </button>
+        </header>
+
+        <section class="tempo-strip" aria-label="Tempo controls">
+          <button class="step-button" id="tempoDown" type="button" aria-label="Decrease tempo">-</button>
+          <div class="tempo-readout">
+            <output id="tempoValue" for="tempoSlider">96</output>
+            <span>BPM</span>
+          </div>
+          <button class="step-button" id="tempoUp" type="button" aria-label="Increase tempo">+</button>
+        </section>
+        <input id="tempoSlider" class="tempo-slider" type="range" min="40" max="300" value="96" />
+
+        <section class="beat-display" aria-label="Beat display">
+          <div class="count-readout">
+            <div class="pulse-ring" id="pulseRing">
+              <span id="beatNumber">1</span>
+            </div>
+            <div class="now-playing">
+              <span id="strokeName">Ready</span>
+              <span id="slotLabel">Pattern starts on beat 1</span>
+            </div>
+          </div>
+          <div class="active-chord-card" id="activeChordCard" aria-label="Current chord">
+            <strong id="annotationLabel">Intro</strong>
+            <div class="measure-number" id="activeMeasure">Measure 1</div>
+            <div class="chord-name-row">
+              <div class="chord-name" id="activeChordName">C</div>
+              <div class="voicing-chip" id="activeVoicing">1/1</div>
+            </div>
+            <div id="activeChordDiagram"></div>
+          </div>
+        </section>
+
+        <section class="pattern-grid" id="patternGrid" aria-label="Strumming pattern"></section>
+        <section class="accent-lane" aria-label="Accent pattern">
+          <span>Accent</span>
+          <div class="accent-grid" id="accentGrid"></div>
+        </section>
+
+        <section class="chord-strip" aria-label="Chord sequence">
+          <div class="section-label">Chords <span aria-hidden="true">-</span> <strong id="pieceName">Unnamed Pice</strong></div>
+          <div class="chord-grid" id="chordGrid"></div>
+          <button class="chord-expand-button" id="expandChordsButton" type="button" aria-expanded="false" aria-controls="fullChordPanel">
+            <span aria-hidden="true">↓</span>
+          </button>
+          <div class="full-chord-panel" id="fullChordPanel" hidden>
+            <div class="full-chord-grid" id="fullChordGrid"></div>
+            <button class="chord-expand-button" id="collapseChordsButton" type="button" aria-label="Hide full chord sequence">
+              <span aria-hidden="true">↑</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="transport" aria-label="Transport controls">
+          <button class="primary-button" id="playButton" type="button">Start</button>
+          <button class="secondary-button" id="resetButton" type="button">Reset</button>
+        </section>
+      </section>
+
+      <aside class="control-panel" aria-label="Metronome settings">
+        <section class="control-group">
+          <label for="patternSelect">Pattern</label>
+          <select id="patternSelect"></select>
+        </section>
+
+        <section class="control-row">
+          <div class="control-group">
+            <label for="beatsSelect">Beats</label>
+            <select id="beatsSelect">
+              <option value="2">2/4</option>
+              <option value="3">3/4</option>
+              <option value="4" selected>4/4</option>
+              <option value="5">5/4</option>
+              <option value="6">6/4</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="subdivisionSelect">Grid</label>
+            <select id="subdivisionSelect">
+              <option value="1">Quarter</option>
+              <option value="2" selected>Eighth</option>
+              <option value="3">Triplet</option>
+              <option value="4">Sixteenth</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <label for="customPattern">Custom pattern</label>
+          <textarea id="customPattern" rows="3" spellcheck="false" aria-describedby="customHint"></textarea>
+          <p id="customHint" class="hint">Use D, U, X, R. Spaces and bars are okay.</p>
+        </section>
+
+        <section class="control-group">
+          <div class="label-actions">
+            <label for="chordSequence">Chord sequence</label>
+            <div class="sequence-actions">
+              <button id="loadSequenceButton" type="button">Load</button>
+              <button id="saveSequenceButton" type="button">Save</button>
+            </div>
+          </div>
+          <textarea id="chordSequence" rows="7" spellcheck="false" aria-describedby="chordHint">Piece:Beautiful-One Anno:Intro F G F/A G/B F G C C Anno:Verse1 F G C/E F G Am7 F G C Anno:Chorus F G F G F G C Anno:Verse2 F G C/E F G Am7 F G C Anno:Chorus F G F G F G C Anno:Chorus F G F G F G C Anno:Bridge1 F G F G F G Anno:Chorus F G F G F G C Anno:Bridge2 F G F G F G Anno:Bridge2 F G F G F G Anno:Bridge2-Quiet1 F G F G F G Anno:Bridge2-Quiet2 F G F G F G</textarea>
+          <input id="sequenceFileInput" type="file" accept=".txt,text/plain,.chords" hidden />
+          <a id="sequenceDownloadLink" class="download-link" href="#" download hidden>Download sequence file</a>
+          <p id="saveStatus" class="hint" aria-live="polite"></p>
+          <p id="chordHint" class="hint">Separate measures with spaces, commas, or bars.</p>
+        </section>
+
+        <section class="control-group">
+          <label for="volumeSlider">Beat volume</label>
+          <input id="volumeSlider" type="range" min="0" max="100" value="34" />
+        </section>
+
+        <section class="control-group">
+          <label for="chordVolumeSlider">Chord volume</label>
+          <input id="chordVolumeSlider" type="range" min="0" max="100" value="58" />
+        </section>
+
+        <section class="control-row">
+          <label class="toggle">
+            <input id="accentToggle" type="checkbox" checked />
+            <span>Beat accent</span>
+          </label>
+          <label class="toggle">
+            <input id="countToggle" type="checkbox" checked />
+            <span>Count in</span>
+          </label>
+        </section>
+
+        <section class="control-group">
+          <label for="practiceMode">Practice mode</label>
+          <select id="practiceMode">
+            <option value="normal">Normal</option>
+            <option value="silent-4">Drop every 4th bar</option>
+            <option value="silent-8">Drop every 8th bar</option>
+          </select>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
