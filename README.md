@@ -10,7 +10,7 @@ It is built as a small static web app with an optional local Python server for s
 
 ## What It Does
 
-- Plays a BPM-based strumming metronome from 40 to 300 BPM.
+- Plays a BPM-based strumming metronome from 40 to 180 BPM.
 - Supports editable strumming patterns with `D`, `U`, `X`, and `R`.
 - Supports three-level accents: off (`-`), light (`>`), and strong (`>>`).
 - Plays guitar-like chord strums that follow the accent pattern.
@@ -169,3 +169,5 @@ Notes:
 The app uses the Web Audio API for timing and synthesized sounds. Chord playback is intentionally lightweight: each accented slot triggers a staggered, filtered set of oscillator notes to mimic a guitar strum without requiring external audio assets.
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
+
+Current version: `v1.020`

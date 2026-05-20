@@ -134,6 +134,7 @@ const state = {
   audio: null,
   gain: null,
   compressor: null,
+  stringBuffers: new Map(),
   timer: null,
   isPlaying: false,
   hasStarted: false,
@@ -337,7 +338,7 @@ function fitAccentPattern(previousPattern) {
 }
 
 function syncTempo(value) {
-  state.tempo = Math.min(300, Math.max(40, Math.round(Number(value))));
+  state.tempo = Math.min(180, Math.max(40, Math.round(Number(value))));
   els.tempoValue.value = state.tempo;
   els.tempoSlider.value = state.tempo;
 }
@@ -547,6 +548,46 @@ function createNoiseSource(duration) {
   return source;
 }
 
+function createGuitarStringBuffer(frequency) {
+  const cacheKey = String(Math.round(frequency * 10));
+  if (state.stringBuffers.has(cacheKey)) return state.stringBuffers.get(cacheKey);
+
+  const sampleRate = state.audio.sampleRate;
+  const duration = 1.45;
+  const frameCount = Math.floor(sampleRate * duration);
+  const buffer = state.audio.createBuffer(1, frameCount, sampleRate);
+  const data = buffer.getChannelData(0);
+  const harmonics = [
+    1, 0.72, 0.46, 0.32, 0.24, 0.18, 0.13, 0.1, 0.075, 0.055, 0.04, 0.03,
+  ];
+
+  for (let i = 0; i < frameCount; i += 1) {
+    const t = i / sampleRate;
+    const attack = Math.min(1, t / 0.012);
+    const stringDecay = Math.exp(-t * 2.45);
+    const bodyDecay = Math.exp(-t * 1.05);
+    const pickTransient = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.18 : 0;
+    let sample = 0;
+
+    harmonics.forEach((amp, harmonicIndex) => {
+      const harmonic = harmonicIndex + 1;
+      const inharmonicity = 1 + harmonic * harmonic * 0.00032;
+      const partialDecay = Math.exp(-t * (1.15 + harmonic * 0.42));
+      sample +=
+        Math.sin(2 * Math.PI * frequency * harmonic * inharmonicity * t) *
+        amp *
+        partialDecay;
+    });
+
+    const lowBody = Math.sin(2 * Math.PI * 96 * t) * 0.055 * bodyDecay;
+    const midBody = Math.sin(2 * Math.PI * 205 * t) * 0.04 * bodyDecay;
+    data[i] = (sample * 0.24 * stringDecay + lowBody + midBody + pickTransient) * attack;
+  }
+
+  state.stringBuffers.set(cacheKey, buffer);
+  return buffer;
+}
+
 function schedulePickNoise(time, level, panValue = 0) {
   const source = createNoiseSource(0.012);
   const bandpass = state.audio.createBiquadFilter();
@@ -573,94 +614,48 @@ function schedulePickNoise(time, level, panValue = 0) {
 }
 
 function schedulePluckedString(frequency, time, level, panValue) {
-  const source = createNoiseSource(0.018);
-  const inputGain = state.audio.createGain();
-  const delay = state.audio.createDelay(1);
-  const feedback = state.audio.createGain();
-  const damping = state.audio.createBiquadFilter();
+  const source = state.audio.createBufferSource();
+  const stringGain = state.audio.createGain();
+  const presence = state.audio.createBiquadFilter();
   const body = state.audio.createBiquadFilter();
   const lowBody = state.audio.createBiquadFilter();
-  const output = state.audio.createGain();
-  const stringFilter = state.audio.createBiquadFilter();
+  const air = state.audio.createBiquadFilter();
   const pan = state.audio.createStereoPanner?.();
-  const period = Math.min(0.06, Math.max(0.002, 1 / frequency));
-  const tonalGain = state.audio.createGain();
-  const harmonicGain = state.audio.createGain();
-  const fundamental = state.audio.createOscillator();
-  const second = state.audio.createOscillator();
-  const third = state.audio.createOscillator();
+  source.buffer = createGuitarStringBuffer(frequency);
+  source.playbackRate.setValueAtTime(1 + (Math.random() - 0.5) * 0.003, time);
 
-  delay.delayTime.setValueAtTime(period, time);
-  feedback.gain.setValueAtTime(0.28, time);
-  feedback.gain.exponentialRampToValueAtTime(0.11, time + 0.46);
-  damping.type = "lowpass";
-  damping.frequency.setValueAtTime(2600, time);
-  damping.frequency.exponentialRampToValueAtTime(700, time + 0.34);
-  damping.Q.setValueAtTime(0.7, time);
+  stringGain.gain.setValueAtTime(0.0001, time);
+  stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 2.6), time + 0.008);
+  stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.25), time + 0.18);
+  stringGain.gain.exponentialRampToValueAtTime(0.0001, time + 1.18);
+
+  presence.type = "peaking";
+  presence.frequency.setValueAtTime(1100, time);
+  presence.Q.setValueAtTime(0.7, time);
+  presence.gain.setValueAtTime(2.8, time);
   body.type = "peaking";
-  body.frequency.setValueAtTime(215, time);
-  body.Q.setValueAtTime(0.85, time);
-  body.gain.setValueAtTime(5.5, time);
+  body.frequency.setValueAtTime(235, time);
+  body.Q.setValueAtTime(0.75, time);
+  body.gain.setValueAtTime(6.5, time);
   lowBody.type = "peaking";
-  lowBody.frequency.setValueAtTime(96, time);
-  lowBody.Q.setValueAtTime(1.2, time);
-  lowBody.gain.setValueAtTime(2.5, time);
-  stringFilter.type = "lowpass";
-  stringFilter.frequency.setValueAtTime(4200, time);
-  stringFilter.frequency.exponentialRampToValueAtTime(1500, time + 0.7);
-  stringFilter.Q.setValueAtTime(0.35, time);
+  lowBody.frequency.setValueAtTime(115, time);
+  lowBody.Q.setValueAtTime(1.05, time);
+  lowBody.gain.setValueAtTime(4.2, time);
+  air.type = "highshelf";
+  air.frequency.setValueAtTime(3600, time);
+  air.gain.setValueAtTime(-1.8, time);
 
-  inputGain.gain.setValueAtTime(0.0001, time);
-  inputGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.28), time + 0.003);
-  inputGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.026);
-
-  output.gain.setValueAtTime(0.0001, time);
-  output.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.55), time + 0.01);
-  output.gain.exponentialRampToValueAtTime(0.0001, time + 0.58);
-
-  fundamental.type = "triangle";
-  second.type = "sine";
-  third.type = "sine";
-  fundamental.frequency.setValueAtTime(frequency, time);
-  second.frequency.setValueAtTime(frequency * 2.01, time);
-  third.frequency.setValueAtTime(frequency * 3.02, time);
-  fundamental.detune.setValueAtTime((Math.random() - 0.5) * 5, time);
-  second.detune.setValueAtTime((Math.random() - 0.5) * 4, time);
-  third.detune.setValueAtTime((Math.random() - 0.5) * 3, time);
-
-  tonalGain.gain.setValueAtTime(0.0001, time);
-  tonalGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.65), time + 0.018);
-  tonalGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.68), time + 0.28);
-  tonalGain.gain.exponentialRampToValueAtTime(0.0001, time + 1.18);
-  harmonicGain.gain.setValueAtTime(0.0001, time);
-  harmonicGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.28), time + 0.014);
-  harmonicGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.46);
-
-  source.connect(inputGain).connect(delay);
-  delay.connect(damping).connect(feedback).connect(delay);
-  delay.connect(body).connect(lowBody).connect(output);
-  fundamental.connect(tonalGain);
-  second.connect(harmonicGain);
-  third.connect(harmonicGain);
-  tonalGain.connect(stringFilter);
-  harmonicGain.connect(stringFilter);
-  stringFilter.connect(body).connect(lowBody).connect(output);
+  source.connect(stringGain).connect(presence).connect(body).connect(lowBody).connect(air);
 
   if (pan) {
     pan.pan.setValueAtTime(panValue, time);
-    output.connect(pan).connect(state.gain);
+    air.connect(pan).connect(state.gain);
   } else {
-    output.connect(state.gain);
+    air.connect(state.gain);
   }
 
   source.start(time);
-  source.stop(time + 0.04);
-  fundamental.start(time);
-  second.start(time);
-  third.start(time);
-  fundamental.stop(time + 1.22);
-  second.stop(time + 0.5);
-  third.stop(time + 0.36);
+  source.stop(time + 1.28);
 }
 
 function scheduleTone(time, token, accentLevel, isSilent) {
@@ -703,7 +698,7 @@ function scheduleChord(time, token, isSilent, accentLevel) {
   orderedNotes.forEach((note, index) => {
     const frequency = typeof note === "number" ? note : noteToFrequency(note);
     const noteTime = time + index * strumSpacing;
-    const level = volume * 0.055 * accentScale * (1 - index * 0.035);
+    const level = volume * 0.075 * accentScale * (1 - index * 0.025);
     const panValue = -0.32 + (index / Math.max(1, orderedNotes.length - 1)) * 0.64;
     schedulePluckedString(frequency, noteTime, level, panValue);
   });

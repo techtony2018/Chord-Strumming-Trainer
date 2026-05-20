@@ -73,6 +73,14 @@ button {
   padding: 22px;
 }
 
+.app-version {
+  grid-column: 1 / -1;
+  color: rgba(251, 252, 248, 0.72);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .topbar,
 .tempo-strip,
 .transport,
