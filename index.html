@@ -12,22 +12,21 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Chord Strumming Trainer</p>
-            <h1>Chord Strumming Trainer</h1>
           </div>
-          <button class="icon-button" id="tapTempoButton" type="button" title="Tap tempo" aria-label="Tap tempo">
-            <span aria-hidden="true">TAP</span>
-          </button>
         </header>
 
         <section class="tempo-strip" aria-label="Tempo controls">
+          <input id="tempoSlider" class="tempo-slider-inline" type="range" min="40" max="300" value="126" />
           <button class="step-button" id="tempoDown" type="button" aria-label="Decrease tempo">-</button>
           <div class="tempo-readout">
             <output id="tempoValue" for="tempoSlider">126</output>
             <span>BPM</span>
           </div>
           <button class="step-button" id="tempoUp" type="button" aria-label="Increase tempo">+</button>
+          <button class="icon-button" id="tapTempoButton" type="button" title="Tap tempo" aria-label="Tap tempo">
+            <span aria-hidden="true">TAP</span>
+          </button>
         </section>
-        <input id="tempoSlider" class="tempo-slider" type="range" min="40" max="300" value="126" />
 
         <section class="beat-display" aria-label="Beat display">
           <div class="count-readout">

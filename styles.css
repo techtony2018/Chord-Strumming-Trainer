@@ -120,9 +120,39 @@ h1 {
 }
 
 .tempo-strip {
-  justify-content: center;
+  justify-content: flex-start;
   gap: clamp(12px, 3vw, 20px);
   margin-top: 24px;
+  flex-wrap: nowrap;
+}
+
+.tempo-strip .tempo-slider-inline {
+  flex: 1 1 120px;
+  min-width: 80px;
+  max-width: 240px;
+  height: 42px;
+  accent-color: var(--accent);
+  order: 1;
+}
+
+.tempo-strip .step-button:first-of-type {
+  order: 2;
+}
+
+.tempo-strip .tempo-readout {
+  order: 3;
+}
+
+.tempo-strip #tempoUp {
+  order: 4;
+}
+
+.tempo-strip .icon-button {
+  order: 5;
+}
+
+.tempo-slider {
+  display: none;
 }
 
 .step-button {
