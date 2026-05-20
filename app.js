@@ -133,6 +133,7 @@ const NOTE_OFFSETS = {
 const state = {
   audio: null,
   gain: null,
+  compressor: null,
   timer: null,
   isPlaying: false,
   hasStarted: false,
@@ -517,7 +518,13 @@ function ensureAudio() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     state.audio = new AudioContext();
     state.gain = state.audio.createGain();
-    state.gain.connect(state.audio.destination);
+    state.compressor = state.audio.createDynamicsCompressor();
+    state.compressor.threshold.setValueAtTime(-20, state.audio.currentTime);
+    state.compressor.knee.setValueAtTime(20, state.audio.currentTime);
+    state.compressor.ratio.setValueAtTime(4, state.audio.currentTime);
+    state.compressor.attack.setValueAtTime(0.006, state.audio.currentTime);
+    state.compressor.release.setValueAtTime(0.16, state.audio.currentTime);
+    state.gain.connect(state.compressor).connect(state.audio.destination);
   }
 
   if (state.audio.state === "suspended") {
@@ -525,22 +532,113 @@ function ensureAudio() {
   }
 }
 
+function createNoiseSource(duration) {
+  const sampleRate = state.audio.sampleRate;
+  const frameCount = Math.max(1, Math.floor(sampleRate * duration));
+  const buffer = state.audio.createBuffer(1, frameCount, sampleRate);
+  const data = buffer.getChannelData(0);
+
+  for (let i = 0; i < frameCount; i += 1) {
+    data[i] = Math.random() * 2 - 1;
+  }
+
+  const source = state.audio.createBufferSource();
+  source.buffer = buffer;
+  return source;
+}
+
+function schedulePickNoise(time, level, panValue = 0) {
+  const source = createNoiseSource(0.018);
+  const bandpass = state.audio.createBiquadFilter();
+  const noiseGain = state.audio.createGain();
+  const pan = state.audio.createStereoPanner?.();
+
+  bandpass.type = "bandpass";
+  bandpass.frequency.setValueAtTime(2600, time);
+  bandpass.Q.setValueAtTime(1.4, time);
+  noiseGain.gain.setValueAtTime(0.0001, time);
+  noiseGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level), time + 0.002);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.026);
+
+  source.connect(bandpass).connect(noiseGain);
+  if (pan) {
+    pan.pan.setValueAtTime(panValue, time);
+    noiseGain.connect(pan).connect(state.gain);
+  } else {
+    noiseGain.connect(state.gain);
+  }
+
+  source.start(time);
+  source.stop(time + 0.03);
+}
+
+function schedulePluckedString(frequency, time, level, panValue) {
+  const source = createNoiseSource(0.024);
+  const inputGain = state.audio.createGain();
+  const delay = state.audio.createDelay(1);
+  const feedback = state.audio.createGain();
+  const damping = state.audio.createBiquadFilter();
+  const body = state.audio.createBiquadFilter();
+  const output = state.audio.createGain();
+  const pan = state.audio.createStereoPanner?.();
+  const period = Math.min(0.06, Math.max(0.002, 1 / frequency));
+
+  delay.delayTime.setValueAtTime(period, time);
+  feedback.gain.setValueAtTime(0.47, time);
+  feedback.gain.exponentialRampToValueAtTime(0.18, time + 0.55);
+  damping.type = "lowpass";
+  damping.frequency.setValueAtTime(3600, time);
+  damping.frequency.exponentialRampToValueAtTime(820, time + 0.42);
+  damping.Q.setValueAtTime(0.7, time);
+  body.type = "peaking";
+  body.frequency.setValueAtTime(185, time);
+  body.Q.setValueAtTime(0.9, time);
+  body.gain.setValueAtTime(4, time);
+
+  inputGain.gain.setValueAtTime(0.0001, time);
+  inputGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level), time + 0.004);
+  inputGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.038);
+
+  output.gain.setValueAtTime(0.0001, time);
+  output.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.7), time + 0.012);
+  output.gain.exponentialRampToValueAtTime(0.0001, time + 0.74);
+
+  source.connect(inputGain).connect(delay);
+  delay.connect(damping).connect(feedback).connect(delay);
+  delay.connect(body).connect(output);
+
+  if (pan) {
+    pan.pan.setValueAtTime(panValue, time);
+    output.connect(pan).connect(state.gain);
+  } else {
+    output.connect(state.gain);
+  }
+
+  source.start(time);
+  source.stop(time + 0.04);
+}
+
 function scheduleTone(time, token, accentLevel, isSilent) {
   if (isSilent || token === "R") return;
 
   const meta = STROKE_META[token];
   const osc = state.audio.createOscillator();
+  const filter = state.audio.createBiquadFilter();
   const toneGain = state.audio.createGain();
   const volume = Number(els.volumeSlider.value) / 100;
   const accentBoost = [1, 1.12, 1.35][accentLevel] ?? 1;
   const duration = meta.duration + (accentLevel === 2 ? 0.012 : accentLevel === 1 ? 0.006 : 0);
 
-  osc.type = token === "X" ? "square" : "triangle";
+  osc.type = token === "X" ? "square" : "sine";
   osc.frequency.setValueAtTime(accentLevel === 2 ? meta.frequency * 1.22 : accentLevel === 1 ? meta.frequency * 1.08 : meta.frequency, time);
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(token === "X" ? 520 : 1200, time);
+  filter.Q.setValueAtTime(token === "X" ? 2.6 : 1.8, time);
   toneGain.gain.setValueAtTime(0.0001, time);
-  toneGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume * 0.45 * accentBoost), time + 0.004);
+  toneGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume * 0.28 * accentBoost), time + 0.002);
   toneGain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-  osc.connect(toneGain).connect(state.gain);
+  osc.connect(filter).connect(toneGain).connect(state.gain);
+  schedulePickNoise(time, volume * (token === "X" ? 0.17 : 0.06) * accentBoost);
   osc.start(time);
   osc.stop(time + duration + 0.01);
 }
@@ -553,28 +651,19 @@ function scheduleChord(time, token, isSilent, accentLevel) {
   const volume = Number(els.chordVolumeSlider.value) / 100;
   if (volume <= 0) return;
 
-  chordNotes.forEach((note, index) => {
-    const frequency = typeof note === "number" ? note : noteToFrequency(note);
-    const osc = state.audio.createOscillator();
-    const filter = state.audio.createBiquadFilter();
-    const toneGain = state.audio.createGain();
-    const noteTime = time + index * 0.018;
-    const level = volume * (accentLevel === 2 ? 0.09 : 0.052) * (1 - index * 0.055);
+  const orderedNotes = token === "U" ? [...chordNotes].reverse() : chordNotes;
+  const accentScale = accentLevel === 2 ? 1 : 0.62;
+  const strumSpacing = accentLevel === 2 ? 0.014 : 0.011;
 
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(frequency, noteTime);
-    osc.detune.setValueAtTime((index - chordNotes.length / 2) * 2.5, noteTime);
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(2200, noteTime);
-    filter.frequency.exponentialRampToValueAtTime(760, noteTime + 0.38);
-    filter.Q.setValueAtTime(0.9, noteTime);
-    toneGain.gain.setValueAtTime(0.0001, noteTime);
-    toneGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level), noteTime + 0.006);
-    toneGain.gain.exponentialRampToValueAtTime(0.0001, noteTime + 0.44);
-    osc.connect(filter).connect(toneGain).connect(state.gain);
-    osc.start(noteTime);
-    osc.stop(noteTime + 0.48);
+  orderedNotes.forEach((note, index) => {
+    const frequency = typeof note === "number" ? note : noteToFrequency(note);
+    const noteTime = time + index * strumSpacing;
+    const level = volume * 0.048 * accentScale * (1 - index * 0.04);
+    const panValue = -0.32 + (index / Math.max(1, orderedNotes.length - 1)) * 0.64;
+    schedulePluckedString(frequency, noteTime, level, panValue);
   });
+
+  schedulePickNoise(time, volume * (accentLevel === 2 ? 0.06 : 0.035));
 }
 
 function shouldSilenceBar() {
