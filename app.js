@@ -136,7 +136,7 @@ const state = {
   timer: null,
   isPlaying: false,
   hasStarted: false,
-  tempo: 96,
+  tempo: 126,
   beats: 4,
   subdivision: 2,
   pattern: [],
