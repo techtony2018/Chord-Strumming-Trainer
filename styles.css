@@ -8,6 +8,7 @@
   --accent: #d94b33;
   --accent-strong: #a72f21;
   --teal: #13746d;
+  --blue: #1f67d2;
   --gold: #d99a27;
   --rest: #9ba49b;
   --shadow: 0 18px 50px rgba(23, 32, 25, 0.14);
@@ -220,20 +221,66 @@ input[type="range"] {
   border: 10px solid var(--line);
   border-radius: 50%;
   background: var(--paper);
+  color: var(--ink);
   transition:
     border-color 80ms ease,
+    color 80ms ease,
     transform 80ms ease,
     background-color 80ms ease;
 }
 
 .pulse-ring span {
-  font-size: clamp(3.6rem, 11vw, 6.4rem);
+  max-width: 86%;
+  font-size: clamp(1.15rem, 4.6vw, 6.4rem);
   font-weight: 900;
+  line-height: 1;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
+.transport-icon {
+  position: relative;
+  width: min(36%, 48px);
+  aspect-ratio: 0.86;
+}
+
+.transport-icon::before {
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  clip-path: polygon(14% 0, 100% 50%, 14% 100%);
+  content: "";
+}
+
+.pulse-ring.active span,
+.pulse-ring.muted span {
+  font-size: clamp(3.6rem, 11vw, 6.4rem);
+}
+
+.pulse-ring[role="button"] {
+  cursor: pointer;
+}
+
+.pulse-ring:focus-visible {
+  outline: 3px solid rgba(31, 103, 210, 0.42);
+  outline-offset: 4px;
+}
+
+.pulse-ring.idle,
+.pulse-ring.paused {
+  border-color: var(--blue);
+  background: #edf4ff;
+  color: var(--blue);
+}
+
+.pulse-ring.playing,
 .pulse-ring.active {
   border-color: var(--accent);
   background: #fff2ec;
+  color: var(--accent-strong);
+}
+
+.pulse-ring.active {
   transform: scale(1.045);
 }
 
@@ -767,7 +814,8 @@ textarea {
     border-width: 7px;
   }
 
-  .pulse-ring span {
+  .pulse-ring.active span,
+  .pulse-ring.muted span {
     font-size: clamp(2.35rem, 12vw, 3.4rem);
   }
 

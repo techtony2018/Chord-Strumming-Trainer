@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chord Strumming Trainer v1.022</title>
+    <title>Chord Strumming Trainer v1.023</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,7 +11,7 @@
       <section class="metronome-panel" aria-label="Strumming metronome">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Chord Strumming Trainer <span class="version-inline">v1.022</span></p>
+            <p class="eyebrow">Chord Strumming Trainer <span class="version-inline">v1.023</span></p>
           </div>
         </header>
 
@@ -23,15 +23,15 @@
             <span>BPM</span>
           </div>
           <button class="step-button" id="tempoUp" type="button" aria-label="Increase tempo">+</button>
-          <button class="icon-button" id="tapTempoButton" type="button" title="Tap tempo" aria-label="Tap tempo">
+          <button class="icon-button" id="tapTempoButton" type="button" title="Step tempo by 20 BPM" aria-label="Step tempo by 20 BPM">
             <span aria-hidden="true">TAP</span>
           </button>
         </section>
 
         <section class="beat-display" aria-label="Beat display">
           <div class="count-readout">
-            <div class="pulse-ring" id="pulseRing">
-              <span id="beatNumber">1</span>
+            <div class="pulse-ring idle" id="pulseRing" role="button" tabindex="0" aria-label="Start">
+              <span id="beatNumber" class="transport-icon"></span>
             </div>
             <div class="now-playing">
               <span id="strokeName">Ready</span>

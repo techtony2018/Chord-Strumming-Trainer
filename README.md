@@ -11,6 +11,7 @@ It is built as a small static web app with an optional local Python server for s
 ## What It Does
 
 - Plays a BPM-based strumming metronome from 40 to 180 BPM.
+- Steps tempo by 20 BPM with the `TAP` button, wrapping from 180 back to 40.
 - Supports editable strumming patterns with `D`, `U`, `X`, and `R`.
 - Supports three-level accents: off (`-`), light (`>`), and strong (`>>`).
 - Plays guitar-like chord strums that follow the accent pattern.
@@ -19,6 +20,15 @@ It is built as a small static web app with an optional local Python server for s
 - Expands to a full-piece chord grid for changing alternate chord fingerings.
 - Loads chord progressions from `.txt` or `.chords` files.
 - Saves chord progressions through the native browser picker when available, through the local server when running with `server.py`, or through a download fallback.
+
+## Playback Controls
+
+- The center counter is the primary transport control.
+- Before playback, the counter shows a blue play icon.
+- During playback, the counter shows the active beat number in red.
+- When paused, the counter shows the blue play icon again.
+- Double-click the counter area to reset to the beginning.
+- The red transport button mirrors the same `Start`, `Pause`, and `Continue` states.
 
 ## App Layout
 
@@ -166,8 +176,8 @@ Notes:
 
 ## Development Notes
 
-The app uses the Web Audio API for timing and synthesized sounds. Chord playback is intentionally lightweight: each accented slot triggers a staggered, filtered set of oscillator notes to mimic a guitar strum without requiring external audio assets.
+The app uses the Web Audio API for timing and synthesized sounds. Chord playback is intentionally lightweight: each accented slot triggers a staggered set of filtered, harmonic-rich plucked-string buffers with small pick-noise transients to mimic a guitar strum without requiring external audio assets.
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.022`
+Current version: `v1.023`

@@ -154,6 +154,7 @@ const state = {
   tapTimes: [],
   visualTimers: [],
   playGeneration: 0,
+  counterClickTimer: 0,
 };
 
 const els = {
@@ -343,6 +344,11 @@ function syncTempo(value) {
   state.tempo = Math.min(180, Math.max(40, Math.round(Number(value))));
   els.tempoValue.value = state.tempo;
   els.tempoSlider.value = state.tempo;
+}
+
+function stepTempo() {
+  const nextTempo = state.tempo + 20;
+  syncTempo(nextTempo > Number(els.tempoSlider.max) ? Number(els.tempoSlider.min) : nextTempo);
 }
 
 function applyPatternFromControls() {
@@ -777,16 +783,56 @@ function updateVisualState(slot, token = state.pattern[slot] ?? "R", isSilent = 
   });
   updateActiveChordCard();
 
-  els.beatNumber.textContent = String(currentBeat(slot));
+  if (state.isPlaying) {
+    els.beatNumber.classList.remove("transport-icon");
+    els.beatNumber.textContent = String(currentBeat(slot));
+  }
   const chordName = state.chordSequence[state.barIndex % state.chordSequence.length] ?? "C";
   els.strokeName.textContent = isCountIn ? "Count in" : `${meta.label} ${chordName}`;
   els.slotLabel.textContent = isSilent
     ? `Silent bar ${state.barIndex + 1}`
     : `Beat ${currentBeat(slot)}, slot ${(slot % state.subdivision) + 1}`;
 
-  els.pulseRing.classList.remove("active", "muted");
-  els.pulseRing.classList.add(isSilent ? "muted" : "active");
-  window.setTimeout(() => els.pulseRing.classList.remove("active"), 90);
+  if (state.isPlaying) {
+    els.pulseRing.classList.remove("active", "idle", "paused", "muted");
+    els.pulseRing.classList.add(isSilent ? "muted" : "active");
+    els.pulseRing.setAttribute("aria-label", "Pause");
+    window.setTimeout(() => els.pulseRing.classList.remove("active"), 90);
+  }
+}
+
+function updateTransportState() {
+  els.pulseRing.classList.remove("active", "muted", "idle", "paused", "playing");
+
+  if (state.isPlaying) {
+    els.playButton.textContent = "Pause";
+    els.pulseRing.classList.add("playing");
+    els.pulseRing.setAttribute("aria-label", "Pause");
+    return;
+  }
+
+  const label = state.hasStarted ? "Continue" : "Start";
+  els.playButton.textContent = label;
+  els.beatNumber.textContent = "";
+  els.beatNumber.classList.add("transport-icon");
+  els.pulseRing.classList.add(state.hasStarted ? "paused" : "idle");
+  els.pulseRing.setAttribute("aria-label", label);
+}
+
+function togglePlayback() {
+  if (state.isPlaying) {
+    pausePlayback();
+    return;
+  }
+
+  startPlayback({ resetProgress: !state.hasStarted });
+}
+
+function handleCounterClick(event) {
+  if (event.detail > 1) return;
+
+  window.clearTimeout(state.counterClickTimer);
+  state.counterClickTimer = window.setTimeout(togglePlayback, 180);
 }
 
 function updateActiveChordCard() {
@@ -827,7 +873,7 @@ function startPlayback({ resetProgress = false } = {}) {
   }
   state.countInRemaining = resetProgress && els.countToggle.checked ? 1 : 0;
   state.nextNoteTime = state.audio.currentTime + 0.08;
-  els.playButton.textContent = "Pause";
+  updateTransportState();
   scheduler();
   state.timer = window.setInterval(scheduler, 25);
 }
@@ -837,11 +883,13 @@ function pausePlayback() {
   state.playGeneration += 1;
   clearTransportTimers();
   state.countInRemaining = 0;
-  els.playButton.textContent = state.hasStarted ? "Resume" : "Start";
+  updateTransportState();
   updateVisualState(state.slotIndex, state.pattern[state.slotIndex], false, false);
+  updateTransportState();
 }
 
 function reset() {
+  window.clearTimeout(state.counterClickTimer);
   state.isPlaying = false;
   state.hasStarted = false;
   state.playGeneration += 1;
@@ -849,20 +897,9 @@ function reset() {
   state.countInRemaining = 0;
   state.slotIndex = 0;
   state.barIndex = 0;
-  els.playButton.textContent = "Start";
+  updateTransportState();
   updateVisualState(0, state.pattern[0], false, false);
-}
-
-function handleTapTempo() {
-  const now = performance.now();
-  state.tapTimes = state.tapTimes.filter((time) => now - time < 2400);
-  state.tapTimes.push(now);
-
-  if (state.tapTimes.length >= 2) {
-    const intervals = state.tapTimes.slice(1).map((time, index) => time - state.tapTimes[index]);
-    const average = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
-    syncTempo(60000 / average);
-  }
+  updateTransportState();
 }
 
 function encodeDataUrlText(value) {
@@ -969,13 +1006,19 @@ function bindEvents() {
   els.tempoSlider.addEventListener("input", (event) => syncTempo(event.target.value));
   els.tempoDown.addEventListener("click", () => syncTempo(state.tempo - 1));
   els.tempoUp.addEventListener("click", () => syncTempo(state.tempo + 1));
-  els.tapTempoButton.addEventListener("click", handleTapTempo);
-  els.playButton.addEventListener("click", () => {
-    if (state.isPlaying) {
-      pausePlayback();
-      return;
+  els.tapTempoButton.addEventListener("click", stepTempo);
+  els.playButton.addEventListener("click", togglePlayback);
+  els.pulseRing.addEventListener("click", handleCounterClick);
+  els.pulseRing.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    window.clearTimeout(state.counterClickTimer);
+    reset();
+  });
+  els.pulseRing.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      togglePlayback();
     }
-    startPlayback({ resetProgress: !state.hasStarted });
   });
   els.resetButton.addEventListener("click", reset);
   els.loadSequenceButton.addEventListener("click", () => els.sequenceFileInput.click());
