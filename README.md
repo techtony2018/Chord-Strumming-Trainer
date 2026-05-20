@@ -1,8 +1,6 @@
 # Chord Strumming Trainer
 
-![App Screenshot 1](app-screenshot-1.jpg)
-
-![App Screenshot 2](app-screenshot-2.jpg)
+![Chord Strumming Trainer screen](cst-screen.png)
 
 Chord Strumming Trainer is a browser-based guitar practice tool that combines a metronome, strumming pattern trainer, chord progression viewer, chord fingering diagrams, and lightweight synthesized guitar-chord playback.
 
@@ -24,6 +22,8 @@ It is built as a small static web app with an optional local Python server for s
 ## Playback Controls
 
 - The center counter is the primary transport control.
+- The version number beside the app title links to this README.
+- Double-click the BPM number to reset tempo to the default 126 BPM.
 - Before playback, the counter shows a blue play icon.
 - During playback, the counter shows the active beat number in red.
 - When paused, the counter shows the blue play icon again.
@@ -180,4 +180,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.023`
+Current version: `v1.024`

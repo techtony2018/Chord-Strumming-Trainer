@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chord Strumming Trainer v1.023</title>
+    <title>Chord Strumming Trainer v1.024</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,7 +11,10 @@
       <section class="metronome-panel" aria-label="Strumming metronome">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Chord Strumming Trainer <span class="version-inline">v1.023</span></p>
+            <p class="eyebrow">
+              Chord Strumming Trainer
+              <a class="version-inline" href="https://github.com/techtony2018/Chord-Strumming-Trainer#readme" target="_blank" rel="noreferrer">v1.024</a>
+            </p>
           </div>
         </header>
 
@@ -19,7 +22,7 @@
           <input id="tempoSlider" class="tempo-slider-inline" type="range" min="40" max="180" value="126" />
           <button class="step-button" id="tempoDown" type="button" aria-label="Decrease tempo">-</button>
           <div class="tempo-readout">
-            <output id="tempoValue" for="tempoSlider">126</output>
+            <output id="tempoValue" for="tempoSlider" title="Double-click to reset tempo to 126 BPM">126</output>
             <span>BPM</span>
           </div>
           <button class="step-button" id="tempoUp" type="button" aria-label="Increase tempo">+</button>
@@ -76,7 +79,7 @@
         </section>
 
         <section class="transport" aria-label="Transport controls">
-          <button class="primary-button" id="playButton" type="button">Start</button>
+          <button class="primary-button ready" id="playButton" type="button">Start</button>
           <button class="secondary-button" id="resetButton" type="button">Reset</button>
         </section>
 

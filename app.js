@@ -130,6 +130,8 @@ const NOTE_OFFSETS = {
   B: 2,
 };
 
+const DEFAULT_TEMPO = 126;
+
 const state = {
   audio: null,
   gain: null,
@@ -138,7 +140,7 @@ const state = {
   timer: null,
   isPlaying: false,
   hasStarted: false,
-  tempo: 126,
+  tempo: DEFAULT_TEMPO,
   beats: 4,
   subdivision: 2,
   pattern: [],
@@ -803,9 +805,11 @@ function updateVisualState(slot, token = state.pattern[slot] ?? "R", isSilent = 
 
 function updateTransportState() {
   els.pulseRing.classList.remove("active", "muted", "idle", "paused", "playing");
+  els.playButton.classList.remove("ready", "playing");
 
   if (state.isPlaying) {
     els.playButton.textContent = "Pause";
+    els.playButton.classList.add("playing");
     els.pulseRing.classList.add("playing");
     els.pulseRing.setAttribute("aria-label", "Pause");
     return;
@@ -813,6 +817,7 @@ function updateTransportState() {
 
   const label = state.hasStarted ? "Continue" : "Start";
   els.playButton.textContent = label;
+  els.playButton.classList.add("ready");
   els.beatNumber.textContent = "";
   els.beatNumber.classList.add("transport-icon");
   els.pulseRing.classList.add(state.hasStarted ? "paused" : "idle");
@@ -1004,6 +1009,7 @@ function loadChordSequenceFile(file) {
 
 function bindEvents() {
   els.tempoSlider.addEventListener("input", (event) => syncTempo(event.target.value));
+  els.tempoValue.addEventListener("dblclick", () => syncTempo(DEFAULT_TEMPO));
   els.tempoDown.addEventListener("click", () => syncTempo(state.tempo - 1));
   els.tempoUp.addEventListener("click", () => syncTempo(state.tempo + 1));
   els.tapTempoButton.addEventListener("click", stepTempo);
@@ -1057,6 +1063,7 @@ function init() {
   renderPatternOptions();
   syncTempo(state.tempo);
   loadPreset(PATTERNS[0].id);
+  updateTransportState();
   bindEvents();
 }
 
