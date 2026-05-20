@@ -13,11 +13,13 @@ It is built as a small static web app with an optional local Python server for s
 - Supports editable strumming patterns with `D`, `U`, `X`, and `R`.
 - Supports three-level accents: off (`-`), light (`>`), and strong (`>>`).
 - Plays guitar-like chord strums that follow the accent pattern.
+- Provides one-click mute controls for beat clicks and chord strums.
 - Shows the active beat, current stroke, active chord, section annotation, and chord diagram.
 - Displays a rolling four-chord window so long pieces do not cause dramatic layout shifts.
 - Expands to a full-piece chord grid for changing alternate chord fingerings.
 - Loads chord progressions from `.txt` or `.chords` files.
 - Saves chord progressions through the native browser picker when available, through the local server when running with `server.py`, or through a download fallback.
+- Works well on mobile phones with compact one-row beat and accent controls, responsive chord cards, and touch-friendly transport controls.
 
 ## Playback Controls
 
@@ -28,7 +30,7 @@ It is built as a small static web app with an optional local Python server for s
 - During playback, the counter shows the active beat number in red.
 - When paused, the counter shows the blue play icon again.
 - Double-click the counter area to reset to the beginning.
-- The red transport button mirrors the same `Start`, `Pause`, and `Continue` states.
+- The transport button mirrors the same states: `Start` and `Continue` are blue, while `Pause` is red.
 
 ## App Layout
 
