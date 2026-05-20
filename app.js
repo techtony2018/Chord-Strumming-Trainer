@@ -172,6 +172,11 @@ const els = {
   activeChordName: document.querySelector("#activeChordName"),
   activeVoicing: document.querySelector("#activeVoicing"),
   activeChordDiagram: document.querySelector("#activeChordDiagram"),
+  nextChordCard: document.querySelector("#nextChordCard"),
+  nextMeasure: document.querySelector("#nextMeasure"),
+  nextChordName: document.querySelector("#nextChordName"),
+  nextVoicing: document.querySelector("#nextVoicing"),
+  nextChordDiagram: document.querySelector("#nextChordDiagram"),
   pieceName: document.querySelector("#pieceName"),
   patternGrid: document.querySelector("#patternGrid"),
   accentGrid: document.querySelector("#accentGrid"),
@@ -179,7 +184,6 @@ const els = {
   fullChordPanel: document.querySelector("#fullChordPanel"),
   fullChordGrid: document.querySelector("#fullChordGrid"),
   expandChordsButton: document.querySelector("#expandChordsButton"),
-  collapseChordsButton: document.querySelector("#collapseChordsButton"),
   patternSelect: document.querySelector("#patternSelect"),
   beatsSelect: document.querySelector("#beatsSelect"),
   subdivisionSelect: document.querySelector("#subdivisionSelect"),
@@ -491,8 +495,9 @@ function renderFullChordGrid() {
 
 function setFullChordPanel(open) {
   els.fullChordPanel.hidden = !open;
-  els.expandChordsButton.hidden = open;
   els.expandChordsButton.setAttribute("aria-expanded", String(open));
+  els.expandChordsButton.setAttribute("aria-label", open ? "Hide full chord sequence" : "Show full chord sequence");
+  els.expandChordsButton.querySelector("span").textContent = open ? "↑" : "↓";
   if (open) renderFullChordGrid();
 }
 
@@ -633,6 +638,9 @@ function updateVisualState(slot, token = state.pattern[slot] ?? "R", isSilent = 
   document.querySelectorAll(".stroke-cell").forEach((cell) => {
     cell.classList.toggle("current", Number(cell.dataset.index) === slot);
   });
+  document.querySelectorAll(".accent-button").forEach((button) => {
+    button.classList.toggle("current", Number(button.dataset.index) === slot);
+  });
   document.querySelectorAll(".chord-card").forEach((card) => {
     card.classList.toggle("current", Number(card.dataset.index) === state.barIndex % state.chordSequence.length);
   });
@@ -664,6 +672,17 @@ function updateActiveChordCard() {
   els.activeVoicing.hidden = voicingCount < 2;
   els.activeChordCard.title = voicingCount > 1 ? `Click to switch ${chordName} fingering` : "";
   els.activeChordDiagram.innerHTML = renderChordDiagram(chordName);
+
+  const nextIndex = (chordIndex + 1) % Math.max(1, state.chordSequence.length);
+  const nextChordName = state.chordSequence[nextIndex] ?? "C";
+  const nextVoicingCount = getChordVoicings(nextChordName).length;
+  const nextVoicingIndex = (state.chordVoicings[nextChordName] ?? 0) + 1;
+  els.nextMeasure.textContent = `Next ${nextIndex + 1}`;
+  els.nextChordName.textContent = nextChordName;
+  els.nextVoicing.textContent = nextVoicingCount > 1 ? `${nextVoicingIndex}/${nextVoicingCount}` : "1/1";
+  els.nextVoicing.hidden = nextVoicingCount < 2;
+  els.nextChordCard.title = nextVoicingCount > 1 ? `Click to switch ${nextChordName} fingering` : "";
+  els.nextChordDiagram.innerHTML = renderChordDiagram(nextChordName);
 }
 
 function startPlayback({ resetProgress = false } = {}) {
@@ -830,14 +849,18 @@ function bindEvents() {
   els.resetButton.addEventListener("click", reset);
   els.loadSequenceButton.addEventListener("click", () => els.sequenceFileInput.click());
   els.saveSequenceButton.addEventListener("click", saveChordSequence);
-  els.expandChordsButton.addEventListener("click", () => setFullChordPanel(true));
-  els.collapseChordsButton.addEventListener("click", () => setFullChordPanel(false));
+  els.expandChordsButton.addEventListener("click", () => setFullChordPanel(els.fullChordPanel.hidden));
   els.sequenceFileInput.addEventListener("change", (event) => {
     loadChordSequenceFile(event.target.files?.[0]);
     event.target.value = "";
   });
   els.activeChordCard.addEventListener("click", () => {
     const chordName = state.chordSequence[state.barIndex % Math.max(1, state.chordSequence.length)] ?? "C";
+    cycleChordVoicing(chordName);
+  });
+  els.nextChordCard.addEventListener("click", () => {
+    const nextIndex = (state.barIndex + 1) % Math.max(1, state.chordSequence.length);
+    const chordName = state.chordSequence[nextIndex] ?? "C";
     cycleChordVoicing(chordName);
   });
   els.patternSelect.addEventListener("change", (event) => loadPreset(event.target.value));

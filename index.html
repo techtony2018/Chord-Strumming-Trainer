@@ -39,20 +39,29 @@
               <span id="slotLabel">Pattern starts on beat 1</span>
             </div>
           </div>
-          <div class="active-chord-card" id="activeChordCard" aria-label="Current chord">
-            <strong id="annotationLabel">Intro</strong>
-            <div class="measure-number" id="activeMeasure">Measure 1</div>
-            <div class="chord-name-row">
-              <div class="chord-name" id="activeChordName">C</div>
-              <div class="voicing-chip" id="activeVoicing">1/1</div>
+          <div class="active-chords-row">
+            <div class="active-chord-card" id="activeChordCard" aria-label="Current chord">
+              <strong id="annotationLabel">Intro</strong>
+              <div class="measure-number" id="activeMeasure">Measure 1</div>
+              <div class="chord-name-row">
+                <div class="chord-name" id="activeChordName">C</div>
+                <div class="voicing-chip" id="activeVoicing">1/1</div>
+              </div>
+              <div id="activeChordDiagram"></div>
             </div>
-            <div id="activeChordDiagram"></div>
+            <div class="next-chord-card" id="nextChordCard" aria-label="Next chord">
+              <div class="measure-number" id="nextMeasure">Next</div>
+              <div class="chord-name-row">
+                <div class="chord-name" id="nextChordName">G</div>
+                <div class="voicing-chip" id="nextVoicing">1/1</div>
+              </div>
+              <div id="nextChordDiagram"></div>
+            </div>
           </div>
         </section>
 
         <section class="pattern-grid" id="patternGrid" aria-label="Strumming pattern"></section>
         <section class="accent-lane" aria-label="Accent pattern">
-          <span>Accent</span>
           <div class="accent-grid" id="accentGrid"></div>
         </section>
 
@@ -64,9 +73,6 @@
           </button>
           <div class="full-chord-panel" id="fullChordPanel" hidden>
             <div class="full-chord-grid" id="fullChordGrid"></div>
-            <button class="chord-expand-button" id="collapseChordsButton" type="button" aria-label="Hide full chord sequence">
-              <span aria-hidden="true">↑</span>
-            </button>
           </div>
         </section>
 
