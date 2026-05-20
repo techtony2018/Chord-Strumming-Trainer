@@ -79,6 +79,7 @@
           <button class="primary-button" id="playButton" type="button">Start</button>
           <button class="secondary-button" id="resetButton" type="button">Reset</button>
         </section>
+
       </section>
 
       <aside class="control-panel" aria-label="Metronome settings">
@@ -131,12 +132,24 @@
         </section>
 
         <section class="control-group">
-          <label for="volumeSlider">Beat volume</label>
+          <div class="volume-heading">
+            <label for="volumeSlider">Beat volume</label>
+            <label class="mini-toggle">
+              <input id="beatMuteToggle" type="checkbox" />
+              <span>Mute</span>
+            </label>
+          </div>
           <input id="volumeSlider" type="range" min="0" max="100" value="34" />
         </section>
 
         <section class="control-group">
-          <label for="chordVolumeSlider">Chord volume</label>
+          <div class="volume-heading">
+            <label for="chordVolumeSlider">Chord volume</label>
+            <label class="mini-toggle">
+              <input id="chordMuteToggle" type="checkbox" />
+              <span>Mute</span>
+            </label>
+          </div>
           <input id="chordVolumeSlider" type="range" min="0" max="100" value="58" />
         </section>
 
@@ -160,8 +173,9 @@
           </select>
         </section>
       </aside>
-      <footer class="app-version">Chord Strumming Trainer v1.020</footer>
     </main>
+
+    <footer class="app-version">Chord Strumming Trainer v1.021</footer>
 
     <script src="./app.js"></script>
   </body>

@@ -23,6 +23,7 @@
 body {
   min-height: 100vh;
   margin: 0;
+  padding-bottom: 24px;
   background:
     linear-gradient(rgba(23, 32, 25, 0.72), rgba(23, 32, 25, 0.42)),
     url("https://images.unsplash.com/photo-1510915361894-db8b60106cb1?auto=format&fit=crop&w=1800&q=80")
@@ -74,11 +75,17 @@ button {
 }
 
 .app-version {
-  grid-column: 1 / -1;
-  color: rgba(251, 252, 248, 0.72);
+  position: fixed;
+  right: 0;
+  bottom: max(6px, env(safe-area-inset-bottom));
+  left: 0;
+  z-index: 20;
+  color: rgba(251, 252, 248, 0.82);
   font-size: 0.72rem;
   font-weight: 700;
+  pointer-events: none;
   text-align: center;
+  text-shadow: 0 1px 8px rgba(23, 32, 25, 0.72);
 }
 
 .topbar,
@@ -620,6 +627,13 @@ input[type="range"] {
   flex: 1;
 }
 
+.volume-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 label {
   color: var(--muted);
   font-size: 0.82rem;
@@ -709,6 +723,27 @@ textarea {
 .toggle input {
   width: 18px;
   height: 18px;
+  accent-color: var(--teal);
+}
+
+.mini-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 8px;
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: none;
+}
+
+.mini-toggle input {
+  width: 15px;
+  height: 15px;
   accent-color: var(--teal);
 }
 

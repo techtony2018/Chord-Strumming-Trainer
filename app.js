@@ -198,6 +198,8 @@ const els = {
   saveStatus: document.querySelector("#saveStatus"),
   volumeSlider: document.querySelector("#volumeSlider"),
   chordVolumeSlider: document.querySelector("#chordVolumeSlider"),
+  beatMuteToggle: document.querySelector("#beatMuteToggle"),
+  chordMuteToggle: document.querySelector("#chordMuteToggle"),
   accentToggle: document.querySelector("#accentToggle"),
   countToggle: document.querySelector("#countToggle"),
   practiceMode: document.querySelector("#practiceMode"),
@@ -659,7 +661,7 @@ function schedulePluckedString(frequency, time, level, panValue) {
 }
 
 function scheduleTone(time, token, accentLevel, isSilent) {
-  if (isSilent || token === "R") return;
+  if (isSilent || token === "R" || els.beatMuteToggle.checked) return;
 
   const meta = STROKE_META[token];
   const osc = state.audio.createOscillator();
@@ -684,7 +686,7 @@ function scheduleTone(time, token, accentLevel, isSilent) {
 }
 
 function scheduleChord(time, token, isSilent, accentLevel) {
-  if (isSilent || state.countInRemaining > 0 || token === "R" || accentLevel === 0) return;
+  if (isSilent || state.countInRemaining > 0 || token === "R" || accentLevel === 0 || els.chordMuteToggle.checked) return;
 
   const chordName = state.chordSequence[state.barIndex % state.chordSequence.length] ?? "C";
   const chordNotes = notesForChord(chordName);
