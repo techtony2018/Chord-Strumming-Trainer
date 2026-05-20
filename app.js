@@ -548,17 +548,17 @@ function createNoiseSource(duration) {
 }
 
 function schedulePickNoise(time, level, panValue = 0) {
-  const source = createNoiseSource(0.018);
+  const source = createNoiseSource(0.012);
   const bandpass = state.audio.createBiquadFilter();
   const noiseGain = state.audio.createGain();
   const pan = state.audio.createStereoPanner?.();
 
   bandpass.type = "bandpass";
-  bandpass.frequency.setValueAtTime(2600, time);
-  bandpass.Q.setValueAtTime(1.4, time);
+  bandpass.frequency.setValueAtTime(3400, time);
+  bandpass.Q.setValueAtTime(1.1, time);
   noiseGain.gain.setValueAtTime(0.0001, time);
   noiseGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level), time + 0.002);
-  noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.026);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.018);
 
   source.connect(bandpass).connect(noiseGain);
   if (pan) {
@@ -569,43 +569,82 @@ function schedulePickNoise(time, level, panValue = 0) {
   }
 
   source.start(time);
-  source.stop(time + 0.03);
+  source.stop(time + 0.022);
 }
 
 function schedulePluckedString(frequency, time, level, panValue) {
-  const source = createNoiseSource(0.024);
+  const source = createNoiseSource(0.018);
   const inputGain = state.audio.createGain();
   const delay = state.audio.createDelay(1);
   const feedback = state.audio.createGain();
   const damping = state.audio.createBiquadFilter();
   const body = state.audio.createBiquadFilter();
+  const lowBody = state.audio.createBiquadFilter();
   const output = state.audio.createGain();
+  const stringFilter = state.audio.createBiquadFilter();
   const pan = state.audio.createStereoPanner?.();
   const period = Math.min(0.06, Math.max(0.002, 1 / frequency));
+  const tonalGain = state.audio.createGain();
+  const harmonicGain = state.audio.createGain();
+  const fundamental = state.audio.createOscillator();
+  const second = state.audio.createOscillator();
+  const third = state.audio.createOscillator();
 
   delay.delayTime.setValueAtTime(period, time);
-  feedback.gain.setValueAtTime(0.47, time);
-  feedback.gain.exponentialRampToValueAtTime(0.18, time + 0.55);
+  feedback.gain.setValueAtTime(0.28, time);
+  feedback.gain.exponentialRampToValueAtTime(0.11, time + 0.46);
   damping.type = "lowpass";
-  damping.frequency.setValueAtTime(3600, time);
-  damping.frequency.exponentialRampToValueAtTime(820, time + 0.42);
+  damping.frequency.setValueAtTime(2600, time);
+  damping.frequency.exponentialRampToValueAtTime(700, time + 0.34);
   damping.Q.setValueAtTime(0.7, time);
   body.type = "peaking";
-  body.frequency.setValueAtTime(185, time);
-  body.Q.setValueAtTime(0.9, time);
-  body.gain.setValueAtTime(4, time);
+  body.frequency.setValueAtTime(215, time);
+  body.Q.setValueAtTime(0.85, time);
+  body.gain.setValueAtTime(5.5, time);
+  lowBody.type = "peaking";
+  lowBody.frequency.setValueAtTime(96, time);
+  lowBody.Q.setValueAtTime(1.2, time);
+  lowBody.gain.setValueAtTime(2.5, time);
+  stringFilter.type = "lowpass";
+  stringFilter.frequency.setValueAtTime(4200, time);
+  stringFilter.frequency.exponentialRampToValueAtTime(1500, time + 0.7);
+  stringFilter.Q.setValueAtTime(0.35, time);
 
   inputGain.gain.setValueAtTime(0.0001, time);
-  inputGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level), time + 0.004);
-  inputGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.038);
+  inputGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.28), time + 0.003);
+  inputGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.026);
 
   output.gain.setValueAtTime(0.0001, time);
-  output.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.7), time + 0.012);
-  output.gain.exponentialRampToValueAtTime(0.0001, time + 0.74);
+  output.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.55), time + 0.01);
+  output.gain.exponentialRampToValueAtTime(0.0001, time + 0.58);
+
+  fundamental.type = "triangle";
+  second.type = "sine";
+  third.type = "sine";
+  fundamental.frequency.setValueAtTime(frequency, time);
+  second.frequency.setValueAtTime(frequency * 2.01, time);
+  third.frequency.setValueAtTime(frequency * 3.02, time);
+  fundamental.detune.setValueAtTime((Math.random() - 0.5) * 5, time);
+  second.detune.setValueAtTime((Math.random() - 0.5) * 4, time);
+  third.detune.setValueAtTime((Math.random() - 0.5) * 3, time);
+
+  tonalGain.gain.setValueAtTime(0.0001, time);
+  tonalGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.65), time + 0.018);
+  tonalGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.68), time + 0.28);
+  tonalGain.gain.exponentialRampToValueAtTime(0.0001, time + 1.18);
+  harmonicGain.gain.setValueAtTime(0.0001, time);
+  harmonicGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.28), time + 0.014);
+  harmonicGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.46);
 
   source.connect(inputGain).connect(delay);
   delay.connect(damping).connect(feedback).connect(delay);
-  delay.connect(body).connect(output);
+  delay.connect(body).connect(lowBody).connect(output);
+  fundamental.connect(tonalGain);
+  second.connect(harmonicGain);
+  third.connect(harmonicGain);
+  tonalGain.connect(stringFilter);
+  harmonicGain.connect(stringFilter);
+  stringFilter.connect(body).connect(lowBody).connect(output);
 
   if (pan) {
     pan.pan.setValueAtTime(panValue, time);
@@ -616,6 +655,12 @@ function schedulePluckedString(frequency, time, level, panValue) {
 
   source.start(time);
   source.stop(time + 0.04);
+  fundamental.start(time);
+  second.start(time);
+  third.start(time);
+  fundamental.stop(time + 1.22);
+  second.stop(time + 0.5);
+  third.stop(time + 0.36);
 }
 
 function scheduleTone(time, token, accentLevel, isSilent) {
@@ -638,7 +683,7 @@ function scheduleTone(time, token, accentLevel, isSilent) {
   toneGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume * 0.28 * accentBoost), time + 0.002);
   toneGain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
   osc.connect(filter).connect(toneGain).connect(state.gain);
-  schedulePickNoise(time, volume * (token === "X" ? 0.17 : 0.06) * accentBoost);
+  schedulePickNoise(time, volume * (token === "X" ? 0.14 : 0.035) * accentBoost);
   osc.start(time);
   osc.stop(time + duration + 0.01);
 }
@@ -658,12 +703,12 @@ function scheduleChord(time, token, isSilent, accentLevel) {
   orderedNotes.forEach((note, index) => {
     const frequency = typeof note === "number" ? note : noteToFrequency(note);
     const noteTime = time + index * strumSpacing;
-    const level = volume * 0.048 * accentScale * (1 - index * 0.04);
+    const level = volume * 0.055 * accentScale * (1 - index * 0.035);
     const panValue = -0.32 + (index / Math.max(1, orderedNotes.length - 1)) * 0.64;
     schedulePluckedString(frequency, noteTime, level, panValue);
   });
 
-  schedulePickNoise(time, volume * (accentLevel === 2 ? 0.06 : 0.035));
+  schedulePickNoise(time, volume * (accentLevel === 2 ? 0.026 : 0.016));
 }
 
 function shouldSilenceBar() {
