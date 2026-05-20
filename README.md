@@ -1,5 +1,9 @@
 # Chord Strumming Trainer
 
+![App Screenshot 1](app-screenshot-1.jpg)
+
+![App Screenshot 2](app-screenshot-2.jpg)
+
 Chord Strumming Trainer is a browser-based guitar practice tool that combines a metronome, strumming pattern trainer, chord progression viewer, chord fingering diagrams, and lightweight synthesized guitar-chord playback.
 
 It is built as a small static web app with an optional local Python server for saving chord-sequence files directly to disk.
