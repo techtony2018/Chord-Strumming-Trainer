@@ -748,16 +748,24 @@ input[type="text"] {
 textarea {
   resize: vertical;
   min-height: 82px;
+  overflow: auto;
   padding: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 #chordSequence {
   min-height: 158px;
+  resize: vertical;
 }
 
 #customPattern {
+  height: 46px;
   min-height: 46px;
+  resize: vertical;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
   line-height: 1.35;
 }
 
