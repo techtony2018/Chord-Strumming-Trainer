@@ -97,6 +97,8 @@ Default accent pattern:
 >> > > >> > > >> >
 ```
 
+When `Beat accent` is enabled, both beat clicks and chord strums follow the accent pattern. When it is disabled, beat clicks and chord strums keep playing at a constant normal level instead of using the accent pattern or muting `-` slots.
+
 ## Chord Graphics And Fingerings
 
 Each chord card shows:
@@ -182,4 +184,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.026`
+Current version: `v1.027`

@@ -131,6 +131,7 @@ const NOTE_OFFSETS = {
 };
 
 const DEFAULT_TEMPO = 126;
+const NEUTRAL_ACCENT_LEVEL = 1;
 
 const state = {
   audio: null,
@@ -790,7 +791,7 @@ function scheduleSlot(slot, time) {
   const isCountIn = state.countInRemaining > 0;
   const generation = state.playGeneration;
   const token = isCountIn ? "D" : state.pattern[slot] ?? "R";
-  const accentLevel = els.accentToggle.checked ? state.accentPattern[slot] : 0;
+  const accentLevel = els.accentToggle.checked ? state.accentPattern[slot] : NEUTRAL_ACCENT_LEVEL;
   const isSilent = !isCountIn && shouldSilenceBar();
 
   scheduleTone(time, token, accentLevel, isSilent);
