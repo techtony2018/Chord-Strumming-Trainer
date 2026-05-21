@@ -301,6 +301,52 @@ function getChordVoicings(chordName) {
   return CHORD_LIBRARY[chordName] ?? [];
 }
 
+function deriveFingerLabels(frets) {
+  const labels = Array.from({ length: 6 }, () => "");
+  const fretted = frets
+    .map((fret, stringIndex) => ({ fret, stringIndex }))
+    .filter(({ fret }) => typeof fret === "number" && fret > 0);
+
+  if (fretted.length === 0) return labels;
+
+  let nextFinger = 1;
+  const lowestFret = Math.min(...fretted.map(({ fret }) => fret));
+  const lowestFretNotes = fretted.filter(({ fret }) => fret === lowestFret);
+  const hasLikelyBarre = lowestFretNotes.length > 1;
+
+  if (hasLikelyBarre) {
+    lowestFretNotes.forEach(({ stringIndex }) => {
+      labels[stringIndex] = "1";
+    });
+    nextFinger = 2;
+  }
+
+  fretted
+    .filter(({ fret }) => !hasLikelyBarre || fret !== lowestFret)
+    .sort((a, b) => a.fret - b.fret || a.stringIndex - b.stringIndex)
+    .forEach(({ stringIndex }) => {
+      labels[stringIndex] = String(Math.min(nextFinger, 4));
+      nextFinger += 1;
+    });
+
+  return labels;
+}
+
+function normalizeFingerLabels(frets, fingers) {
+  if (!Array.isArray(fingers) || fingers.length !== 6) return deriveFingerLabels(frets);
+
+  const labels = fingers.map((finger, index) => {
+    const fret = frets[index];
+    if (typeof fret !== "number" || fret <= 0) return "";
+    const label = String(finger ?? "");
+    return /^[1-4]$/.test(label) ? label : "";
+  });
+
+  return labels.every((label, index) => typeof frets[index] !== "number" || frets[index] <= 0 || label)
+    ? labels
+    : deriveFingerLabels(frets);
+}
+
 function getChordVoicing(chordName) {
   const voicings = getChordVoicings(chordName);
   if (voicings.length === 0) return null;
@@ -425,6 +471,7 @@ function renderAccentPattern() {
 function renderChordDiagram(chordName) {
   const chord = getChordVoicing(chordName);
   const frets = chord?.frets ?? ["x", "x", "x", "x", "x", "x"];
+  const fingerLabels = normalizeFingerLabels(frets, chord?.fingers);
   const stringLines = Array.from(
     { length: 6 },
     (_, index) => `<span class="string-line" style="--string: ${index + 1};"></span>`,
@@ -442,7 +489,7 @@ function renderChordDiagram(chordName) {
   const dots = frets
     .map((fret, index) => {
       if (typeof fret !== "number" || fret === 0) return "";
-      return `<span class="fret-dot" style="--string: ${index + 1}; --fret: ${fret};">${fret}</span>`;
+      return `<span class="fret-dot" style="--string: ${index + 1}; --fret: ${fret};">${fingerLabels[index]}</span>`;
     })
     .join("");
 
@@ -558,12 +605,15 @@ function createNoiseSource(duration) {
   return source;
 }
 
-function createGuitarStringBuffer(frequency) {
-  const cacheKey = String(Math.round(frequency * 10));
+function chordRingSeconds() {
+  return Math.min(3.2, Math.max(1.28, slotSeconds() + 0.22));
+}
+
+function createGuitarStringBuffer(frequency, duration) {
+  const cacheKey = `${Math.round(frequency * 10)}:${Math.round(duration * 20)}`;
   if (state.stringBuffers.has(cacheKey)) return state.stringBuffers.get(cacheKey);
 
   const sampleRate = state.audio.sampleRate;
-  const duration = 1.45;
   const frameCount = Math.floor(sampleRate * duration);
   const buffer = state.audio.createBuffer(1, frameCount, sampleRate);
   const data = buffer.getChannelData(0);
@@ -623,7 +673,7 @@ function schedulePickNoise(time, level, panValue = 0) {
   source.stop(time + 0.022);
 }
 
-function schedulePluckedString(frequency, time, level, panValue) {
+function schedulePluckedString(frequency, time, level, panValue, ringSeconds) {
   const source = state.audio.createBufferSource();
   const stringGain = state.audio.createGain();
   const presence = state.audio.createBiquadFilter();
@@ -631,13 +681,13 @@ function schedulePluckedString(frequency, time, level, panValue) {
   const lowBody = state.audio.createBiquadFilter();
   const air = state.audio.createBiquadFilter();
   const pan = state.audio.createStereoPanner?.();
-  source.buffer = createGuitarStringBuffer(frequency);
+  source.buffer = createGuitarStringBuffer(frequency, ringSeconds + 0.18);
   source.playbackRate.setValueAtTime(1 + (Math.random() - 0.5) * 0.003, time);
 
   stringGain.gain.setValueAtTime(0.0001, time);
   stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 2.6), time + 0.008);
-  stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.25), time + 0.18);
-  stringGain.gain.exponentialRampToValueAtTime(0.0001, time + 1.18);
+  stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.25), time + Math.min(0.2, ringSeconds * 0.18));
+  stringGain.gain.exponentialRampToValueAtTime(0.0001, time + ringSeconds);
 
   presence.type = "peaking";
   presence.frequency.setValueAtTime(1100, time);
@@ -665,7 +715,7 @@ function schedulePluckedString(frequency, time, level, panValue) {
   }
 
   source.start(time);
-  source.stop(time + 1.28);
+  source.stop(time + ringSeconds + 0.03);
 }
 
 function scheduleTone(time, token, accentLevel, isSilent) {
@@ -704,13 +754,14 @@ function scheduleChord(time, token, isSilent, accentLevel) {
   const orderedNotes = token === "U" ? [...chordNotes].reverse() : chordNotes;
   const accentScale = accentLevel === 2 ? 1 : 0.62;
   const strumSpacing = accentLevel === 2 ? 0.014 : 0.011;
+  const ringSeconds = chordRingSeconds();
 
   orderedNotes.forEach((note, index) => {
     const frequency = typeof note === "number" ? note : noteToFrequency(note);
     const noteTime = time + index * strumSpacing;
     const level = volume * 0.075 * accentScale * (1 - index * 0.025);
     const panValue = -0.32 + (index / Math.max(1, orderedNotes.length - 1)) * 0.64;
-    schedulePluckedString(frequency, noteTime, level, panValue);
+    schedulePluckedString(frequency, noteTime, level, panValue, ringSeconds);
   });
 
   schedulePickNoise(time, volume * (accentLevel === 2 ? 0.026 : 0.016));
