@@ -606,7 +606,11 @@ function createNoiseSource(duration) {
 }
 
 function chordRingSeconds() {
-  return Math.min(3.2, Math.max(1.28, slotSeconds() + 0.22));
+  return Math.min(4.2, Math.max(1.35, slotSeconds() * 1.18 + 0.28));
+}
+
+function slowStrumSustainAmount() {
+  return Math.min(1, Math.max(0, (slotSeconds() - 0.62) / 0.9));
 }
 
 function createGuitarStringBuffer(frequency, duration) {
@@ -620,28 +624,31 @@ function createGuitarStringBuffer(frequency, duration) {
   const harmonics = [
     1, 0.72, 0.46, 0.32, 0.24, 0.18, 0.13, 0.1, 0.075, 0.055, 0.04, 0.03,
   ];
+  const sustainStretch = Math.min(2.7, Math.max(1, duration / 1.46));
+  const bodyStretch = Math.sqrt(sustainStretch);
 
   for (let i = 0; i < frameCount; i += 1) {
     const t = i / sampleRate;
     const attack = Math.min(1, t / 0.012);
-    const stringDecay = Math.exp(-t * 2.45);
-    const bodyDecay = Math.exp(-t * 1.05);
+    const stringDecay = Math.exp((-t * 1.88) / sustainStretch);
+    const bodyDecay = Math.exp((-t * 0.82) / bodyStretch);
     const pickTransient = t < 0.018 ? (Math.random() * 2 - 1) * (1 - t / 0.018) * 0.18 : 0;
     let sample = 0;
 
     harmonics.forEach((amp, harmonicIndex) => {
       const harmonic = harmonicIndex + 1;
       const inharmonicity = 1 + harmonic * harmonic * 0.00032;
-      const partialDecay = Math.exp(-t * (1.15 + harmonic * 0.42));
+      const partialDecay = Math.exp((-t * (1.0 + harmonic * 0.34)) / sustainStretch);
       sample +=
         Math.sin(2 * Math.PI * frequency * harmonic * inharmonicity * t) *
         amp *
         partialDecay;
     });
 
-    const lowBody = Math.sin(2 * Math.PI * 96 * t) * 0.055 * bodyDecay;
-    const midBody = Math.sin(2 * Math.PI * 205 * t) * 0.04 * bodyDecay;
-    data[i] = (sample * 0.24 * stringDecay + lowBody + midBody + pickTransient) * attack;
+    const lowBody = Math.sin(2 * Math.PI * 96 * t) * 0.06 * bodyDecay;
+    const midBody = Math.sin(2 * Math.PI * 205 * t) * 0.046 * bodyDecay;
+    const topBody = Math.sin(2 * Math.PI * 410 * t) * 0.018 * Math.exp((-t * 1.2) / bodyStretch);
+    data[i] = (sample * 0.26 * stringDecay + lowBody + midBody + topBody + pickTransient) * attack;
   }
 
   state.stringBuffers.set(cacheKey, buffer);
@@ -673,7 +680,7 @@ function schedulePickNoise(time, level, panValue = 0) {
   source.stop(time + 0.022);
 }
 
-function schedulePluckedString(frequency, time, level, panValue, ringSeconds) {
+function schedulePluckedString(frequency, time, level, panValue, ringSeconds, sustainAmount) {
   const source = state.audio.createBufferSource();
   const stringGain = state.audio.createGain();
   const presence = state.audio.createBiquadFilter();
@@ -686,7 +693,10 @@ function schedulePluckedString(frequency, time, level, panValue, ringSeconds) {
 
   stringGain.gain.setValueAtTime(0.0001, time);
   stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 2.6), time + 0.008);
-  stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 1.25), time + Math.min(0.2, ringSeconds * 0.18));
+  stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * (1.25 + sustainAmount * 0.28)), time + Math.min(0.32, ringSeconds * 0.22));
+  if (sustainAmount > 0) {
+    stringGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, level * 0.38 * sustainAmount), time + ringSeconds * 0.72);
+  }
   stringGain.gain.exponentialRampToValueAtTime(0.0001, time + ringSeconds);
 
   presence.type = "peaking";
@@ -696,14 +706,14 @@ function schedulePluckedString(frequency, time, level, panValue, ringSeconds) {
   body.type = "peaking";
   body.frequency.setValueAtTime(235, time);
   body.Q.setValueAtTime(0.75, time);
-  body.gain.setValueAtTime(6.5, time);
+  body.gain.setValueAtTime(6.5 + sustainAmount * 1.8, time);
   lowBody.type = "peaking";
   lowBody.frequency.setValueAtTime(115, time);
   lowBody.Q.setValueAtTime(1.05, time);
-  lowBody.gain.setValueAtTime(4.2, time);
+  lowBody.gain.setValueAtTime(4.2 + sustainAmount * 1.4, time);
   air.type = "highshelf";
   air.frequency.setValueAtTime(3600, time);
-  air.gain.setValueAtTime(-1.8, time);
+  air.gain.setValueAtTime(-1.8 - sustainAmount * 0.7, time);
 
   source.connect(stringGain).connect(presence).connect(body).connect(lowBody).connect(air);
 
@@ -755,13 +765,15 @@ function scheduleChord(time, token, isSilent, accentLevel) {
   const accentScale = accentLevel === 2 ? 1 : 0.62;
   const strumSpacing = accentLevel === 2 ? 0.014 : 0.011;
   const ringSeconds = chordRingSeconds();
+  const sustainAmount = slowStrumSustainAmount();
+  const sustainLevelBoost = 1 + sustainAmount * 0.18;
 
   orderedNotes.forEach((note, index) => {
     const frequency = typeof note === "number" ? note : noteToFrequency(note);
     const noteTime = time + index * strumSpacing;
-    const level = volume * 0.075 * accentScale * (1 - index * 0.025);
+    const level = volume * 0.075 * accentScale * sustainLevelBoost * (1 - index * 0.025);
     const panValue = -0.32 + (index / Math.max(1, orderedNotes.length - 1)) * 0.64;
-    schedulePluckedString(frequency, noteTime, level, panValue, ringSeconds);
+    schedulePluckedString(frequency, noteTime, level, panValue, ringSeconds, sustainAmount);
   });
 
   schedulePickNoise(time, volume * (accentLevel === 2 ? 0.026 : 0.016));
