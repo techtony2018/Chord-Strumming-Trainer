@@ -52,8 +52,8 @@ flowchart TD
 Chord sequences are plain text. Separate items with spaces, commas, or bars.
 
 ```text
-Piece:Beautiful-One Anno:Intro F G F/A G/B F G C C
-Anno:Verse1 F G C/E F G Am7 F G C
+Piece:Beautiful-One-Simplified Anno:Intro F G F G F G C C
+Anno:Verse1 F G C F G Am F G C F G C
 ```
 
 Supported annotations:
@@ -184,4 +184,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.027`
+Current version: `v1.028`
