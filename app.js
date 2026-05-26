@@ -859,6 +859,8 @@ function bindTunerStringPress(button, index) {
   button.addEventListener("pointerup", clearPress);
   button.addEventListener("pointerleave", clearPress);
   button.addEventListener("pointercancel", clearPress);
+  button.addEventListener("selectstart", (event) => event.preventDefault());
+  button.addEventListener("dragstart", (event) => event.preventDefault());
   button.addEventListener("contextmenu", (event) => event.preventDefault());
   button.addEventListener("click", (event) => {
     if (held) {
@@ -1407,6 +1409,7 @@ function bindChordPress(element, chordName, onTap) {
   element.addEventListener("pointercancel", finishPress);
   element.addEventListener("pointerleave", finishPress);
   element.addEventListener("selectstart", (event) => event.preventDefault());
+  element.addEventListener("dragstart", (event) => event.preventDefault());
   element.addEventListener("contextmenu", (event) => {
     event.preventDefault();
   });
