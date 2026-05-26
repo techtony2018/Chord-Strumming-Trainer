@@ -51,6 +51,10 @@ const STROKE_META = {
 };
 
 const CHORD_LONG_PRESS_MS = 450;
+const CHORD_PREVIEW_DURATION_SECONDS = 5;
+const TUNER_STRING_LONG_PRESS_MS = 520;
+const TUNER_REFERENCE_INTERVAL_MS = 15000;
+const TUNER_REFERENCE_DURATION_SECONDS = 5;
 
 const CHORD_LIBRARY = {
   C: [
@@ -217,6 +221,9 @@ const state = {
     inTuneSince: 0,
     tunedStrings: new Set(),
     requestId: 0,
+    periodicToneIndex: -1,
+    periodicToneTimer: 0,
+    toneSources: new Set(),
   },
 };
 
@@ -282,8 +289,6 @@ const els = {
   tunerInputLevel: document.querySelector("#tunerInputLevel"),
   tunerInputFill: document.querySelector("#tunerInputFill"),
   tunerStrings: document.querySelector("#tunerStrings"),
-  tunerToneButton: document.querySelector("#tunerToneButton"),
-  tunerStatus: document.querySelector("#tunerStatus"),
   tunerPanel: document.querySelector("#tunerPanel"),
 };
 
@@ -394,7 +399,15 @@ function resetTunerReading(message = "Microphone off") {
   els.tunerCents.textContent = message;
   els.tunerNeedle.style.setProperty("--needle-position", "50%");
   els.tunerNeedle.classList.remove("in-tune");
+  updateDetectedTunerString();
   if (message === "Microphone off") state.tuner.smoothedFrequency = null;
+}
+
+function tunerIdleMessage() {
+  if (state.tuner.periodicToneIndex >= 0) {
+    return `${selectedTunerString().note} reference tone - every 15 seconds`;
+  }
+  return state.tuner.active ? "Waiting for a pluck" : "Microphone off";
 }
 
 function updateTunerInputLevel(level = 0) {
@@ -428,21 +441,36 @@ function renderTunerStrings() {
   tunerStrings().forEach((string, index) => {
     const button = document.createElement("button");
     const tuned = state.tuner.tunedStrings.has(index);
-    button.className = `tuner-string-button${index === state.tuner.selectedIndex ? " selected" : ""}${tuned ? " tuned" : ""}`;
+    const repeating = state.tuner.periodicToneIndex === index;
+    button.className = `tuner-string-button${index === state.tuner.selectedIndex ? " selected" : ""}${tuned ? " tuned" : ""}${repeating ? " repeating" : ""}`;
     button.type = "button";
     button.dataset.index = String(index);
-    button.setAttribute("aria-label", `Tune ${stringOrdinal(string.string)} string to ${string.note}${tuned ? ", tuned" : ""}`);
+    button.setAttribute(
+      "aria-label",
+      `Tune ${stringOrdinal(string.string)} string to ${string.note}. Tap for reference tone; hold for repeating tone.${tuned ? " Tuned." : ""}`,
+    );
     button.innerHTML = `<strong>${string.note}</strong>`;
-    button.addEventListener("click", () => {
-      state.tuner.selectedIndex = index;
-      state.tuner.auto = false;
-      els.tunerAutoToggle.checked = false;
-      renderTunerStrings();
-      resetTunerReading(state.tuner.active ? "Waiting for a pluck" : "Microphone off");
-    });
+    bindTunerStringPress(button, index);
     els.tunerStrings.append(button);
   });
+  tunerStrings().forEach((string, index) => {
+    const marker = document.createElement("span");
+    marker.className = `tuner-headstock-string string-${index}`;
+    marker.dataset.index = String(index);
+    marker.setAttribute("aria-hidden", "true");
+    els.tunerStrings.append(marker);
+  });
   els.tunerTargetLabel.textContent = `Target ${selectedTunerString().note}`;
+  updateDetectedTunerString(state.tuner.smoothedFrequency ? state.tuner.selectedIndex : -1);
+}
+
+function updateDetectedTunerString(index = -1) {
+  els.tunerStrings?.querySelectorAll(".tuner-string-button").forEach((button, buttonIndex) => {
+    button.classList.toggle("detected", buttonIndex === index);
+  });
+  els.tunerStrings?.querySelectorAll(".tuner-headstock-string").forEach((marker, markerIndex) => {
+    marker.classList.toggle("detected", markerIndex === index);
+  });
 }
 
 function updateTunedStringProgress(isInTune) {
@@ -487,9 +515,7 @@ function showTunerReading(frequency) {
   els.tunerCents.textContent = isInTune ? "In tune" : `${signedCents > 0 ? "+" : ""}${signedCents} cents - ${stateText}`;
   els.tunerNeedle.style.setProperty("--needle-position", `${50 + clampedCents}%`);
   els.tunerNeedle.classList.toggle("in-tune", isInTune);
-  els.tunerStrings.querySelectorAll(".tuner-string-button").forEach((button, index) => {
-    button.classList.toggle("detected", index === state.tuner.selectedIndex && isInTune);
-  });
+  updateDetectedTunerString(state.tuner.selectedIndex);
 }
 
 function signalLevel(buffer) {
@@ -569,19 +595,16 @@ function runTunerFrame() {
     const isStableNote = previous && Math.abs(centsFromTarget(frequency, previous)) < 80;
     state.tuner.smoothedFrequency = isStableNote ? previous * 0.72 + frequency * 0.28 : frequency;
     showTunerReading(state.tuner.smoothedFrequency);
-    els.tunerStatus.textContent = "Reading input";
   } else if (level >= threshold) {
     clearTunerConfirmation();
     state.tuner.lastSignalAt = performance.now();
-    els.tunerStatus.textContent = "Sound heard - finding pitch";
+    els.tunerCents.textContent = "Sound heard - finding pitch";
   } else if (state.tuner.smoothedFrequency && performance.now() - state.tuner.lastSignalAt <= TUNER_READING_HOLD_MS) {
     clearTunerConfirmation();
-    els.tunerStatus.textContent = "Holding last reading";
   } else if (performance.now() - state.tuner.lastSignalAt > TUNER_READING_HOLD_MS) {
     clearTunerConfirmation();
     state.tuner.smoothedFrequency = null;
     resetTunerReading("Waiting for a pluck");
-    els.tunerStatus.textContent = "Waiting for a pluck";
   }
 
   state.tuner.frame = window.requestAnimationFrame(runTunerFrame);
@@ -602,15 +625,14 @@ function stopTuner() {
   state.tuner.frame = 0;
   state.tuner.starting = false;
   els.retuneButton.disabled = false;
-  els.tunerStatus.textContent = "Microphone off";
   updateTunerInputLevel();
-  resetTunerReading();
+  if (state.tuner.periodicToneIndex < 0) resetTunerReading();
 }
 
 async function startTuner() {
   if (state.tuner.active || state.tuner.starting) return;
   if (!navigator.mediaDevices?.getUserMedia) {
-    els.tunerStatus.textContent = "Microphone unavailable";
+    resetTunerReading("Microphone unavailable");
     return;
   }
 
@@ -619,7 +641,7 @@ async function startTuner() {
   const requestId = ++state.tuner.requestId;
   state.tuner.starting = true;
   els.retuneButton.disabled = true;
-  els.tunerStatus.textContent = "Starting microphone";
+  resetTunerReading("Starting microphone");
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -650,13 +672,11 @@ async function startTuner() {
     resetTunedStrings();
     renderTunerStrings();
     els.retuneButton.disabled = false;
-    els.tunerStatus.textContent = "Waiting for a pluck";
     resetTunerReading("Waiting for a pluck");
     updateTunerInputLevel();
     runTunerFrame();
   } catch {
     if (requestId === state.tuner.requestId && !els.tunerPanel.hidden) {
-      els.tunerStatus.textContent = "Microphone permission needed";
       resetTunerReading("Microphone permission needed");
       els.retuneButton.disabled = false;
     }
@@ -679,11 +699,23 @@ function setTunerPanel(open) {
   if (open) {
     startTuner();
   } else {
+    stopPeriodicReferenceTone(false);
     stopTuner();
   }
 }
 
-function playTunerReferenceTone() {
+function stopReferenceToneSources() {
+  state.tuner.toneSources.forEach((source) => {
+    try {
+      source.stop();
+    } catch {
+      // Audio node may already have naturally ended.
+    }
+  });
+  state.tuner.toneSources.clear();
+}
+
+function playTunerReferenceTone(durationSeconds = 1.2) {
   ensureAudio();
   const time = state.audio.currentTime;
   const targetFrequency = noteToFrequency(selectedTunerString().note);
@@ -698,16 +730,93 @@ function playTunerReferenceTone() {
   overtone.frequency.setValueAtTime(targetFrequency * 2, time);
   toneGain.gain.setValueAtTime(0.0001, time);
   toneGain.gain.exponentialRampToValueAtTime(0.1, time + 0.015);
-  toneGain.gain.exponentialRampToValueAtTime(0.0001, time + 1.2);
+  toneGain.gain.exponentialRampToValueAtTime(0.035, time + Math.min(0.42, durationSeconds * 0.2));
+  toneGain.gain.exponentialRampToValueAtTime(0.0001, time + durationSeconds);
   overtoneGain.gain.setValueAtTime(0.0001, time);
   overtoneGain.gain.exponentialRampToValueAtTime(0.022, time + 0.015);
-  overtoneGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.82);
+  overtoneGain.gain.exponentialRampToValueAtTime(0.0001, time + Math.min(durationSeconds, 2.2));
   oscillator.connect(toneGain).connect(state.gain);
   overtone.connect(overtoneGain).connect(state.gain);
   oscillator.start(time);
   overtone.start(time);
-  oscillator.stop(time + 1.22);
-  overtone.stop(time + 0.84);
+  oscillator.stop(time + durationSeconds + 0.02);
+  overtone.stop(time + Math.min(durationSeconds, 2.22));
+  state.tuner.toneSources.add(oscillator);
+  state.tuner.toneSources.add(overtone);
+  oscillator.addEventListener("ended", () => state.tuner.toneSources.delete(oscillator));
+  overtone.addEventListener("ended", () => state.tuner.toneSources.delete(overtone));
+}
+
+function stopPeriodicReferenceTone(resumeListening = true) {
+  if (state.tuner.periodicToneTimer) window.clearInterval(state.tuner.periodicToneTimer);
+  state.tuner.periodicToneTimer = 0;
+  state.tuner.periodicToneIndex = -1;
+  stopReferenceToneSources();
+  renderTunerStrings();
+  if (resumeListening && !els.tunerPanel.hidden) startTuner();
+}
+
+function startPeriodicReferenceTone(index) {
+  stopTuner();
+  stopReferenceToneSources();
+  state.tuner.selectedIndex = index;
+  state.tuner.auto = false;
+  els.tunerAutoToggle.checked = false;
+  state.tuner.periodicToneIndex = index;
+  renderTunerStrings();
+  resetTunerReading(`${selectedTunerString().note} reference tone - every 15 seconds`);
+  playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS);
+  state.tuner.periodicToneTimer = window.setInterval(
+    () => playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS),
+    TUNER_REFERENCE_INTERVAL_MS,
+  );
+}
+
+function handleTunerStringTap(index) {
+  state.tuner.selectedIndex = index;
+  state.tuner.auto = false;
+  els.tunerAutoToggle.checked = false;
+  if (state.tuner.periodicToneIndex >= 0) {
+    stopPeriodicReferenceTone(true);
+    return;
+  }
+  renderTunerStrings();
+  resetTunerReading(`${selectedTunerString().note} reference tone`);
+  playTunerReferenceTone();
+}
+
+function bindTunerStringPress(button, index) {
+  let pressTimer = 0;
+  let held = false;
+  const clearPress = () => {
+    window.clearTimeout(pressTimer);
+    pressTimer = 0;
+  };
+
+  button.addEventListener("pointerdown", (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    held = false;
+    pressTimer = window.setTimeout(() => {
+      held = true;
+      if (state.tuner.periodicToneIndex >= 0) {
+        stopPeriodicReferenceTone(true);
+      } else {
+        startPeriodicReferenceTone(index);
+      }
+    }, TUNER_STRING_LONG_PRESS_MS);
+  });
+  button.addEventListener("pointerup", clearPress);
+  button.addEventListener("pointerleave", clearPress);
+  button.addEventListener("pointercancel", clearPress);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+  button.addEventListener("click", (event) => {
+    if (held) {
+      event.preventDefault();
+      held = false;
+      return;
+    }
+    handleTunerStringTap(index);
+  });
 }
 
 function notesForChord(chordName) {
@@ -1188,7 +1297,7 @@ function scheduleTone(time, token, accentLevel, isSilent) {
   osc.stop(time + duration + 0.01);
 }
 
-function scheduleNamedChord(chordName, time, token, accentLevel) {
+function scheduleNamedChord(chordName, time, token, accentLevel, ringSecondsOverride = null) {
   const chordNotes = notesForChord(chordName);
   const volume = Number(els.chordVolumeSlider.value) / 100;
   if (volume <= 0) return;
@@ -1196,8 +1305,8 @@ function scheduleNamedChord(chordName, time, token, accentLevel) {
   const orderedNotes = token === "U" ? [...chordNotes].reverse() : chordNotes;
   const accentScale = accentLevel === 2 ? 1 : 0.62;
   const strumSpacing = accentLevel === 2 ? 0.014 : 0.011;
-  const ringSeconds = chordRingSeconds();
-  const sustainAmount = slowStrumSustainAmount();
+  const ringSeconds = ringSecondsOverride ?? chordRingSeconds();
+  const sustainAmount = ringSecondsOverride ? 1 : slowStrumSustainAmount();
   const sustainLevelBoost = 1 + sustainAmount * 0.18;
 
   orderedNotes.forEach((note, index) => {
@@ -1221,7 +1330,7 @@ function scheduleChord(time, token, isSilent, accentLevel) {
 function previewChord(chordName) {
   if (els.chordMuteToggle.checked || Number(els.chordVolumeSlider.value) <= 0) return;
   ensureAudio();
-  scheduleNamedChord(chordName, state.audio.currentTime + 0.02, "D", 2);
+  scheduleNamedChord(chordName, state.audio.currentTime + 0.02, "D", 2, CHORD_PREVIEW_DURATION_SECONDS);
 }
 
 function bindChordPress(element, chordName, onTap) {
@@ -1631,18 +1740,17 @@ function bindEvents() {
     resetTunedStrings();
     renderTunerStrings();
   });
-  els.tunerToneButton.addEventListener("click", playTunerReferenceTone);
   els.tuningPreset.addEventListener("change", (event) => {
     state.tuner.preset = event.target.value;
     state.tuner.selectedIndex = 0;
     resetTunedStrings();
     renderTunerStrings();
-    resetTunerReading(state.tuner.active ? "Waiting for a pluck" : "Microphone off");
+    resetTunerReading(tunerIdleMessage());
   });
   els.tunerAutoToggle.addEventListener("change", (event) => {
     state.tuner.auto = event.target.checked;
     renderTunerStrings();
-    resetTunerReading(state.tuner.active ? "Waiting for a pluck" : "Microphone off");
+    resetTunerReading(tunerIdleMessage());
   });
 }
 

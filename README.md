@@ -13,9 +13,9 @@ It is built as a small static web app with an optional local Python server for s
 - Supports editable strumming patterns with `D`, `U`, `X`, and `R`.
 - Supports three-level accents: off (`-`), light (`>`), and strong (`>>`).
 - Plays guitar-like chord strums that follow the accent pattern.
-- Plays an individual chord on a long press of its chord card; tapping still cycles available fingerings.
+- Plays an individual chord with a five-second sustain on a long press of its chord card; tapping still cycles available fingerings.
 - Provides one-click mute controls for beat clicks and chord strums.
-- Tunes a live guitar through the microphone with cents feedback, open-string target selection, alternate tunings, and reference tones.
+- Tunes a live guitar through the microphone with cents feedback, highlighted detected strings, alternate tunings, and reference tones.
 - Shows the active beat, current stroke, active chord, section annotation, and chord diagram.
 - Displays a rolling four-chord window so long pieces do not cause dramatic layout shifts.
 - Expands to a full-piece chord grid for changing alternate chord fingerings.
@@ -113,10 +113,12 @@ The built-in tuner follows the familiar online guitar-tuner workflow:
 - Use `Standard`, `Drop D`, `Open G`, or `Half step down` tuning.
 - Leave `Auto` enabled beside the current target to identify the nearest target string, or turn it off and select a specific string.
 - Read the input level, detected note, flat/sharp cents offset, and center marker/needle for in-tune feedback.
+- Tap a string-name button to play its reference pitch.
+- Press and hold a string-name button to play a five-second reference tone every 15 seconds while microphone detection pauses; tap or hold again to resume listening.
 - The last tuning reading stays visible briefly while a note decays, and a green check marks strings held in tune.
+- The detected string button and its corresponding headstock string/peg are highlighted while tuning.
 - The string buttons show target pitches such as `E2 A2 D3 G3 B3 E4`, positioned beside their matching headstock tuning machines.
 - The target strings are arranged around a realistic acoustic guitar headstock for a more natural tuning reference.
-- Use `Tone` to play the current target string as a reference pitch.
 
 Starting metronome playback turns the microphone tuner off so the generated click and chord sounds are not misread as the instrument.
 
@@ -207,4 +209,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.031`
+Current version: `v1.032`
