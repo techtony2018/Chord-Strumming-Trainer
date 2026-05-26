@@ -1200,12 +1200,12 @@ textarea {
 }
 
 .tuner-headstock-string.string-0 {
-  top: 118px;
+  top: 75px;
   left: calc(50% - 44px);
 }
 
 .tuner-headstock-string.string-1 {
-  top: 75px;
+  top: 53px;
   left: calc(50% - 43px);
 }
 
@@ -1220,12 +1220,12 @@ textarea {
 }
 
 .tuner-headstock-string.string-4 {
-  top: 75px;
+  top: 53px;
   left: calc(50% + 31px);
 }
 
 .tuner-headstock-string.string-5 {
-  top: 118px;
+  top: 75px;
   left: calc(50% + 32px);
 }
 

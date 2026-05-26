@@ -113,8 +113,8 @@ The built-in tuner follows the familiar online guitar-tuner workflow:
 - Use `Standard`, `Drop D`, `Open G`, or `Half step down` tuning.
 - Leave `Auto` enabled beside the current target to identify the nearest target string, or turn it off and select a specific string.
 - Read the input level, detected note, flat/sharp cents offset, and center marker/needle for in-tune feedback.
-- Tap a string-name button to play its reference pitch.
-- Press and hold a string-name button to play a five-second reference tone, pause for five seconds, and repeat while microphone detection pauses; tap or hold again to resume listening.
+- Tap a string-name button to select a tuning target while microphone listening remains active.
+- Press and hold a string-name button to play a five-second reference tone with the microphone off, then listen for tuning feedback for ten seconds; if the string is not yet tuned the guide tone repeats, and a successful tune stops the cycle.
 - The last tuning reading stays visible briefly while a note decays, and a green check marks strings held in tune.
 - The corresponding headstock tuning peg is highlighted while tuning; reference playback highlights only its peg while the tone is sounding.
 - The string buttons show target pitches such as `E2 A2 D3 G3 B3 E4`, positioned beside their matching headstock tuning machines.
@@ -209,4 +209,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.033`
+Current version: `v1.034`

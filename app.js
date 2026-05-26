@@ -54,8 +54,7 @@ const CHORD_LONG_PRESS_MS = 450;
 const CHORD_PREVIEW_DURATION_SECONDS = 5;
 const TUNER_STRING_LONG_PRESS_MS = 520;
 const TUNER_REFERENCE_DURATION_SECONDS = 5;
-const TUNER_REFERENCE_PAUSE_SECONDS = 5;
-const TUNER_REFERENCE_INTERVAL_MS = (TUNER_REFERENCE_DURATION_SECONDS + TUNER_REFERENCE_PAUSE_SECONDS) * 1000;
+const TUNER_LISTEN_DURATION_SECONDS = 10;
 
 const CHORD_LIBRARY = {
   C: [
@@ -223,6 +222,7 @@ const state = {
     tunedStrings: new Set(),
     requestId: 0,
     periodicToneIndex: -1,
+    periodicTonePhase: "",
     periodicToneTimer: 0,
     referenceToneIndex: -1,
     referenceHighlightTimer: 0,
@@ -408,7 +408,9 @@ function resetTunerReading(message = "Microphone off") {
 
 function tunerIdleMessage() {
   if (state.tuner.periodicToneIndex >= 0) {
-    return `${selectedTunerString().note} reference tone - 5 seconds on, 5 seconds off`;
+    return state.tuner.periodicTonePhase === "listening"
+      ? `${selectedTunerString().note} listening - tune now`
+      : `${selectedTunerString().note} reference tone - listen in 5 seconds`;
   }
   return state.tuner.active ? "Waiting for a pluck" : "Microphone off";
 }
@@ -450,7 +452,7 @@ function renderTunerStrings() {
     button.dataset.index = String(index);
     button.setAttribute(
       "aria-label",
-      `Tune ${stringOrdinal(string.string)} string to ${string.note}. Tap for reference tone; hold for repeating tone.${tuned ? " Tuned." : ""}`,
+      `Tune ${stringOrdinal(string.string)} string to ${string.note}. Tap to select target; hold for guided tuning cycle.${tuned ? " Tuned." : ""}`,
     );
     button.innerHTML = `<strong>${string.note}</strong>`;
     bindTunerStringPress(button, index);
@@ -508,9 +510,14 @@ function updateTunedStringProgress(isInTune) {
     return;
   }
 
-  if (now - state.tuner.inTuneSince >= TUNER_IN_TUNE_CONFIRM_MS && !state.tuner.tunedStrings.has(index)) {
-    state.tuner.tunedStrings.add(index);
-    renderTunerStrings();
+  if (now - state.tuner.inTuneSince >= TUNER_IN_TUNE_CONFIRM_MS) {
+    if (!state.tuner.tunedStrings.has(index)) {
+      state.tuner.tunedStrings.add(index);
+      renderTunerStrings();
+    }
+    if (state.tuner.periodicToneIndex === index && state.tuner.periodicTonePhase === "listening") {
+      stopPeriodicReferenceTone(false);
+    }
   }
 }
 
@@ -650,7 +657,7 @@ function stopTuner() {
   if (state.tuner.periodicToneIndex < 0) resetTunerReading();
 }
 
-async function startTuner() {
+async function startTuner({ resetProgress = true } = {}) {
   if (state.tuner.active || state.tuner.starting) return;
   if (!navigator.mediaDevices?.getUserMedia) {
     resetTunerReading("Microphone unavailable");
@@ -690,10 +697,10 @@ async function startTuner() {
     state.tuner.lastSignalAt = performance.now();
     state.tuner.smoothedFrequency = null;
     state.tuner.noiseFloor = TUNER_MIN_SIGNAL_LEVEL;
-    resetTunedStrings();
+    if (resetProgress) resetTunedStrings();
     renderTunerStrings();
     els.retuneButton.disabled = false;
-    resetTunerReading("Waiting for a pluck");
+    resetTunerReading(tunerIdleMessage());
     updateTunerInputLevel();
     runTunerFrame();
   } catch {
@@ -772,28 +779,49 @@ function playTunerReferenceTone(durationSeconds = 1.2) {
 }
 
 function stopPeriodicReferenceTone(resumeListening = true) {
-  if (state.tuner.periodicToneTimer) window.clearInterval(state.tuner.periodicToneTimer);
+  if (state.tuner.periodicToneTimer) window.clearTimeout(state.tuner.periodicToneTimer);
   state.tuner.periodicToneTimer = 0;
   state.tuner.periodicToneIndex = -1;
+  state.tuner.periodicTonePhase = "";
   stopReferenceToneSources();
   renderTunerStrings();
   if (resumeListening && !els.tunerPanel.hidden) startTuner();
 }
 
-function startPeriodicReferenceTone(index) {
+function playPeriodicReferenceTone() {
+  if (state.tuner.periodicToneIndex < 0) return;
   stopTuner();
   stopReferenceToneSources();
+  state.tuner.periodicTonePhase = "playing";
+  renderTunerStrings();
+  resetTunerReading(tunerIdleMessage());
+  playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS);
+  state.tuner.periodicToneTimer = window.setTimeout(
+    beginPeriodicListening,
+    TUNER_REFERENCE_DURATION_SECONDS * 1000,
+  );
+}
+
+function beginPeriodicListening() {
+  if (state.tuner.periodicToneIndex < 0) return;
+  stopReferenceToneSources();
+  state.tuner.periodicTonePhase = "listening";
+  renderTunerStrings();
+  resetTunerReading(tunerIdleMessage());
+  startTuner({ resetProgress: false });
+  state.tuner.periodicToneTimer = window.setTimeout(
+    playPeriodicReferenceTone,
+    TUNER_LISTEN_DURATION_SECONDS * 1000,
+  );
+}
+
+function startPeriodicReferenceTone(index) {
   state.tuner.selectedIndex = index;
   state.tuner.auto = false;
   els.tunerAutoToggle.checked = false;
   state.tuner.periodicToneIndex = index;
-  renderTunerStrings();
-  resetTunerReading(`${selectedTunerString().note} reference tone - 5 seconds on, 5 seconds off`);
-  playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS);
-  state.tuner.periodicToneTimer = window.setInterval(
-    () => playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS),
-    TUNER_REFERENCE_INTERVAL_MS,
-  );
+  clearTunerConfirmation();
+  playPeriodicReferenceTone();
 }
 
 function handleTunerStringTap(index) {
@@ -805,8 +833,7 @@ function handleTunerStringTap(index) {
     return;
   }
   renderTunerStrings();
-  resetTunerReading(`${selectedTunerString().note} reference tone`);
-  playTunerReferenceTone();
+  resetTunerReading(tunerIdleMessage());
 }
 
 function bindTunerStringPress(button, index) {
