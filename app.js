@@ -53,8 +53,9 @@ const STROKE_META = {
 const CHORD_LONG_PRESS_MS = 450;
 const CHORD_PREVIEW_DURATION_SECONDS = 5;
 const TUNER_STRING_LONG_PRESS_MS = 520;
-const TUNER_REFERENCE_INTERVAL_MS = 15000;
 const TUNER_REFERENCE_DURATION_SECONDS = 5;
+const TUNER_REFERENCE_PAUSE_SECONDS = 5;
+const TUNER_REFERENCE_INTERVAL_MS = (TUNER_REFERENCE_DURATION_SECONDS + TUNER_REFERENCE_PAUSE_SECONDS) * 1000;
 
 const CHORD_LIBRARY = {
   C: [
@@ -223,6 +224,8 @@ const state = {
     requestId: 0,
     periodicToneIndex: -1,
     periodicToneTimer: 0,
+    referenceToneIndex: -1,
+    referenceHighlightTimer: 0,
     toneSources: new Set(),
   },
 };
@@ -405,7 +408,7 @@ function resetTunerReading(message = "Microphone off") {
 
 function tunerIdleMessage() {
   if (state.tuner.periodicToneIndex >= 0) {
-    return `${selectedTunerString().note} reference tone - every 15 seconds`;
+    return `${selectedTunerString().note} reference tone - 5 seconds on, 5 seconds off`;
   }
   return state.tuner.active ? "Waiting for a pluck" : "Microphone off";
 }
@@ -462,15 +465,33 @@ function renderTunerStrings() {
   });
   els.tunerTargetLabel.textContent = `Target ${selectedTunerString().note}`;
   updateDetectedTunerString(state.tuner.smoothedFrequency ? state.tuner.selectedIndex : -1);
+  updateReferenceToneHighlight(state.tuner.referenceToneIndex);
 }
 
 function updateDetectedTunerString(index = -1) {
-  els.tunerStrings?.querySelectorAll(".tuner-string-button").forEach((button, buttonIndex) => {
-    button.classList.toggle("detected", buttonIndex === index);
-  });
   els.tunerStrings?.querySelectorAll(".tuner-headstock-string").forEach((marker, markerIndex) => {
     marker.classList.toggle("detected", markerIndex === index);
   });
+}
+
+function updateReferenceToneHighlight(index = -1) {
+  els.tunerStrings?.querySelectorAll(".tuner-headstock-string").forEach((marker, markerIndex) => {
+    marker.classList.toggle("playing", markerIndex === index);
+  });
+}
+
+function clearReferenceToneHighlight() {
+  window.clearTimeout(state.tuner.referenceHighlightTimer);
+  state.tuner.referenceHighlightTimer = 0;
+  state.tuner.referenceToneIndex = -1;
+  updateReferenceToneHighlight();
+}
+
+function showReferenceToneHighlight(index, durationSeconds) {
+  clearReferenceToneHighlight();
+  state.tuner.referenceToneIndex = index;
+  updateReferenceToneHighlight(index);
+  state.tuner.referenceHighlightTimer = window.setTimeout(clearReferenceToneHighlight, durationSeconds * 1000);
 }
 
 function updateTunedStringProgress(isInTune) {
@@ -713,11 +734,13 @@ function stopReferenceToneSources() {
     }
   });
   state.tuner.toneSources.clear();
+  clearReferenceToneHighlight();
 }
 
 function playTunerReferenceTone(durationSeconds = 1.2) {
   ensureAudio();
   const time = state.audio.currentTime;
+  const stringIndex = state.tuner.selectedIndex;
   const targetFrequency = noteToFrequency(selectedTunerString().note);
   const oscillator = state.audio.createOscillator();
   const overtone = state.audio.createOscillator();
@@ -739,6 +762,7 @@ function playTunerReferenceTone(durationSeconds = 1.2) {
   overtone.connect(overtoneGain).connect(state.gain);
   oscillator.start(time);
   overtone.start(time);
+  showReferenceToneHighlight(stringIndex, durationSeconds);
   oscillator.stop(time + durationSeconds + 0.02);
   overtone.stop(time + Math.min(durationSeconds, 2.22));
   state.tuner.toneSources.add(oscillator);
@@ -764,7 +788,7 @@ function startPeriodicReferenceTone(index) {
   els.tunerAutoToggle.checked = false;
   state.tuner.periodicToneIndex = index;
   renderTunerStrings();
-  resetTunerReading(`${selectedTunerString().note} reference tone - every 15 seconds`);
+  resetTunerReading(`${selectedTunerString().note} reference tone - 5 seconds on, 5 seconds off`);
   playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS);
   state.tuner.periodicToneTimer = window.setInterval(
     () => playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS),

@@ -1165,13 +1165,6 @@ textarea {
   color: var(--teal);
 }
 
-.tuner-string-button.detected {
-  border-color: var(--blue);
-  background: #eaf2ff;
-  color: var(--blue);
-  box-shadow: inset 0 0 0 1px var(--blue);
-}
-
 .tuner-string-button.repeating {
   border-color: var(--gold);
   background: #fff8ea;
@@ -1201,64 +1194,39 @@ textarea {
   transition: opacity 100ms ease;
 }
 
-.tuner-headstock-string::after {
-  content: "";
-  position: absolute;
-  top: 7px;
-  left: 5px;
-  width: 2px;
-  height: var(--string-length);
-  border-radius: 999px;
-  background: var(--blue);
-  transform: rotate(var(--string-angle));
-  transform-origin: top center;
-  opacity: 0.86;
-}
-
-.tuner-headstock-string.detected {
+.tuner-headstock-string.detected,
+.tuner-headstock-string.playing {
   opacity: 1;
 }
 
 .tuner-headstock-string.string-0 {
   top: 118px;
   left: calc(50% - 44px);
-  --string-angle: 17deg;
-  --string-length: 48px;
 }
 
 .tuner-headstock-string.string-1 {
   top: 75px;
   left: calc(50% - 43px);
-  --string-angle: 12deg;
-  --string-length: 90px;
 }
 
 .tuner-headstock-string.string-2 {
   top: 32px;
   left: calc(50% - 39px);
-  --string-angle: 9deg;
-  --string-length: 132px;
 }
 
 .tuner-headstock-string.string-3 {
   top: 32px;
   left: calc(50% + 27px);
-  --string-angle: -9deg;
-  --string-length: 132px;
 }
 
 .tuner-headstock-string.string-4 {
   top: 75px;
   left: calc(50% + 31px);
-  --string-angle: -12deg;
-  --string-length: 90px;
 }
 
 .tuner-headstock-string.string-5 {
   top: 118px;
   left: calc(50% + 32px);
-  --string-angle: -17deg;
-  --string-length: 48px;
 }
 
 @media (max-width: 820px) {
