@@ -22,6 +22,7 @@ It is built as a small static web app with an optional local Python server for s
 - Loads chord progressions from `.txt` or `.chords` files.
 - Saves chord progressions through the native browser picker when available, through the local server when running with `server.py`, or through a download fallback.
 - Works well on mobile phones with compact one-row beat and accent controls, responsive chord cards, and touch-friendly transport controls.
+- Installs cleanly to an iPhone home screen with a dedicated app name and icon.
 
 ## Playback Controls
 
@@ -202,6 +203,8 @@ Notes:
 | `styles.css` | Responsive layout and chord diagram styling |
 | `app.js` | Metronome scheduler, pitch detection, audio, parsing, chord rendering, file actions |
 | `server.py` | Optional local server with save endpoint |
+| `manifest.webmanifest` | Installable web app name, theme, and icon metadata |
+| `assets/app-icon.svg` and PNG icons | Browser and iPhone home-screen branding |
 | `.gitignore` | Ignores generated saved sequences and macOS metadata |
 
 ## Development Notes
@@ -210,4 +213,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.036`
+Current version: `v1.037`

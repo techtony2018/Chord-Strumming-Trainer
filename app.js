@@ -1521,8 +1521,8 @@ function updateVisualState(slot, token = state.pattern[slot] ?? "R", isSilent = 
     els.beatNumber.textContent = String(currentBeat(slot));
   }
   const chordName = state.chordSequence[state.barIndex % state.chordSequence.length] ?? "C";
-  els.strokeName.textContent = isCountIn ? "Count in" : `${meta.label} ${chordName}`;
-  els.strokeName.dataset.stroke = isCountIn ? "" : meta.className;
+  els.strokeName.textContent = isCountIn ? "Count in" : `${meta.glyph} ${chordName}`;
+  els.strokeName.dataset.stroke = isCountIn ? "count-in" : meta.className;
   els.slotLabel.textContent = isSilent
     ? `Silent bar ${state.barIndex + 1}`
     : `Beat ${currentBeat(slot)}, slot ${(slot % state.subdivision) + 1}`;

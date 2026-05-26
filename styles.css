@@ -56,7 +56,7 @@ button {
 }
 
 .app-shell.tuner-mode {
-  grid-template-columns: minmax(320px, 620px);
+  grid-template-columns: minmax(320px, 710px);
   justify-content: center;
 }
 
@@ -175,6 +175,7 @@ h1 {
 .tempo-strip .tuner-launch-button {
   order: 0;
   width: 48px;
+  border-radius: 50%;
 }
 
 .tempo-strip.tuner-mode > :not(.tuner-launch-button) {
@@ -393,6 +394,10 @@ input[type="range"] {
 
 .now-playing span:first-child[data-stroke="mute"] {
   color: var(--gold);
+}
+
+.now-playing span:first-child[data-stroke="count-in"] {
+  font-size: clamp(1.14rem, 3vw, 2.28rem);
 }
 
 .now-playing span:last-child {
@@ -987,6 +992,8 @@ textarea {
   min-width: 40px;
   min-height: 40px;
   height: 40px;
+  padding: 0;
+  border-radius: 50%;
 }
 
 .tuner-power-button .reset-cycle-icon {
@@ -1415,6 +1422,10 @@ textarea {
 
   .now-playing span:first-child {
     font-size: clamp(1.55rem, 8vw, 2.35rem);
+  }
+
+  .now-playing span:first-child[data-stroke="count-in"] {
+    font-size: clamp(0.93rem, 4.8vw, 1.41rem);
   }
 
   .active-chords-row {
