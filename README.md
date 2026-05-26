@@ -213,4 +213,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.037`
+Current version: `v1.038`
