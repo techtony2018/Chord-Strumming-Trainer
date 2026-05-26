@@ -224,6 +224,7 @@ const state = {
     periodicToneIndex: -1,
     periodicTonePhase: "",
     periodicToneTimer: 0,
+    singleToneTimer: 0,
     referenceToneIndex: -1,
     referenceHighlightTimer: 0,
     toneSources: new Set(),
@@ -452,7 +453,7 @@ function renderTunerStrings() {
     button.dataset.index = String(index);
     button.setAttribute(
       "aria-label",
-      `Tune ${stringOrdinal(string.string)} string to ${string.note}. Tap to select target; hold for guided tuning cycle.${tuned ? " Tuned." : ""}`,
+      `Tune ${stringOrdinal(string.string)} string to ${string.note}. Tap for reference tone then listening; hold for guided tuning cycle.${tuned ? " Tuned." : ""}`,
     );
     button.innerHTML = `<strong>${string.note}</strong>`;
     bindTunerStringPress(button, index);
@@ -511,6 +512,8 @@ function updateTunedStringProgress(isInTune) {
   }
 
   if (now - state.tuner.inTuneSince >= TUNER_IN_TUNE_CONFIRM_MS) {
+    state.tuner.auto = true;
+    els.tunerAutoToggle.checked = true;
     if (!state.tuner.tunedStrings.has(index)) {
       state.tuner.tunedStrings.add(index);
       renderTunerStrings();
@@ -727,6 +730,7 @@ function setTunerPanel(open) {
   if (open) {
     startTuner();
   } else {
+    stopSingleReferenceTone(false);
     stopPeriodicReferenceTone(false);
     stopTuner();
   }
@@ -788,8 +792,16 @@ function stopPeriodicReferenceTone(resumeListening = true) {
   if (resumeListening && !els.tunerPanel.hidden) startTuner();
 }
 
+function stopSingleReferenceTone(resumeListening = false) {
+  if (state.tuner.singleToneTimer) window.clearTimeout(state.tuner.singleToneTimer);
+  state.tuner.singleToneTimer = 0;
+  stopReferenceToneSources();
+  if (resumeListening && !els.tunerPanel.hidden) startTuner({ resetProgress: false });
+}
+
 function playPeriodicReferenceTone() {
   if (state.tuner.periodicToneIndex < 0) return;
+  stopSingleReferenceTone(false);
   stopTuner();
   stopReferenceToneSources();
   state.tuner.periodicTonePhase = "playing";
@@ -816,6 +828,7 @@ function beginPeriodicListening() {
 }
 
 function startPeriodicReferenceTone(index) {
+  stopSingleReferenceTone(false);
   state.tuner.selectedIndex = index;
   state.tuner.auto = false;
   els.tunerAutoToggle.checked = false;
@@ -824,16 +837,27 @@ function startPeriodicReferenceTone(index) {
   playPeriodicReferenceTone();
 }
 
-function handleTunerStringTap(index) {
+function startSingleReferenceTone(index) {
+  if (state.tuner.periodicToneIndex >= 0) stopPeriodicReferenceTone(false);
+  stopSingleReferenceTone(false);
+  stopTuner();
   state.tuner.selectedIndex = index;
   state.tuner.auto = false;
   els.tunerAutoToggle.checked = false;
-  if (state.tuner.periodicToneIndex >= 0) {
-    stopPeriodicReferenceTone(true);
-    return;
-  }
+  clearTunerConfirmation();
   renderTunerStrings();
-  resetTunerReading(tunerIdleMessage());
+  resetTunerReading(`${selectedTunerString().note} reference tone - listen in 5 seconds`);
+  playTunerReferenceTone(TUNER_REFERENCE_DURATION_SECONDS);
+  state.tuner.singleToneTimer = window.setTimeout(() => {
+    state.tuner.singleToneTimer = 0;
+    stopReferenceToneSources();
+    resetTunerReading(`${selectedTunerString().note} listening - tune now`);
+    startTuner({ resetProgress: false });
+  }, TUNER_REFERENCE_DURATION_SECONDS * 1000);
+}
+
+function handleTunerStringTap(index) {
+  startSingleReferenceTone(index);
 }
 
 function bindTunerStringPress(button, index) {
@@ -1498,6 +1522,7 @@ function updateVisualState(slot, token = state.pattern[slot] ?? "R", isSilent = 
   }
   const chordName = state.chordSequence[state.barIndex % state.chordSequence.length] ?? "C";
   els.strokeName.textContent = isCountIn ? "Count in" : `${meta.label} ${chordName}`;
+  els.strokeName.dataset.stroke = isCountIn ? "" : meta.className;
   els.slotLabel.textContent = isSilent
     ? `Silent bar ${state.barIndex + 1}`
     : `Beat ${currentBeat(slot)}, slot ${(slot % state.subdivision) + 1}`;

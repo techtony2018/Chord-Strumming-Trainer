@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chord Strumming Trainer v1.035</title>
+    <title>Chord Strumming Trainer v1.036</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -13,7 +13,7 @@
           <div>
             <p class="eyebrow">
               Chord Strumming Trainer
-              <a class="version-inline" href="https://github.com/techtony2018/Chord-Strumming-Trainer#readme" target="_blank" rel="noreferrer">v1.035</a>
+              <a class="version-inline" href="https://github.com/techtony2018/Chord-Strumming-Trainer#readme" target="_blank" rel="noreferrer">v1.036</a>
             </p>
           </div>
         </header>
@@ -34,7 +34,14 @@
         <section class="tuner-panel" id="tunerPanel" aria-label="Guitar tuner" hidden>
           <div class="label-actions">
             <label for="tuningPreset">Guitar tuner</label>
-            <button class="tuner-power-button" id="retuneButton" type="button">Retune</button>
+            <button class="tuner-power-button icon-reset-button" id="retuneButton" type="button" aria-label="Retune" title="Retune">
+              <svg class="reset-cycle-icon" viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M8 18a17 17 0 0 1 29-5l4 5" />
+                <path d="M41 9v9h-9" />
+                <path d="M40 30a17 17 0 0 1-29 5l-4-5" />
+                <path d="M7 39v-9h9" />
+              </svg>
+            </button>
           </div>
           <div class="tuner-options">
             <select id="tuningPreset" aria-label="Tuning preset">
@@ -128,7 +135,14 @@
 
         <section class="transport" aria-label="Transport controls">
           <button class="primary-button ready" id="playButton" type="button">Start</button>
-          <button class="secondary-button" id="resetButton" type="button">Reset</button>
+          <button class="secondary-button icon-reset-button" id="resetButton" type="button" aria-label="Reset" title="Reset">
+            <svg class="reset-cycle-icon" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M8 18a17 17 0 0 1 29-5l4 5" />
+              <path d="M41 9v9h-9" />
+              <path d="M40 30a17 17 0 0 1-29 5l-4-5" />
+              <path d="M7 39v-9h9" />
+            </svg>
+          </button>
         </section>
         </div>
 

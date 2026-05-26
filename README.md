@@ -28,11 +28,11 @@ It is built as a small static web app with an optional local Python server for s
 - The center counter is the primary transport control.
 - The version number beside the app title links to this README.
 - Click the BPM number to step tempo by 20 BPM; double-click it to reset to the default 126 BPM.
-- Before playback, the counter shows a blue play icon.
+- Before playback, the counter shows a green play icon.
 - During playback, the counter shows the active beat number in red.
-- When paused, the counter shows the blue play icon again.
+- When paused, the counter shows the green play icon again.
 - Double-click the counter area to reset to the beginning.
-- The transport button mirrors the same states: `Start` and `Continue` are blue, while `Pause` is red.
+- The transport command uses the green control style; the circular counter stays green when ready or paused and turns red while playing.
 
 ## App Layout
 
@@ -109,12 +109,13 @@ The built-in tuner follows the familiar online guitar-tuner workflow:
 - Open the tuner from the tuning-fork button at the left of the top row; it replaces the metronome and chord practice controls and immediately requests microphone access.
 - Click the chord icon in the same button to return to the chord practice view.
 - Closing the tuner view automatically turns the microphone off.
-- Click `Retune` to clear completed-string check marks and tune the guitar again.
+- Click the circular-arrow `Retune` control to clear completed-string check marks and tune the guitar again.
 - Use `Standard`, `Drop D`, `Open G`, or `Half step down` tuning.
 - Leave `Auto` enabled beside the current target to identify the nearest target string, or turn it off and select a specific string.
 - Read the input level, detected note, flat/sharp cents offset, and center marker/needle for in-tune feedback.
-- Tap a string-name button to select a tuning target while microphone listening remains active.
+- Tap a string-name button to play one five-second reference tone with the microphone off, then keep listening for that target until it is tuned.
 - Press and hold a string-name button to play a five-second reference tone with the microphone off, then listen for tuning feedback for ten seconds; if the string is not yet tuned the guide tone repeats, and a successful tune stops the cycle.
+- Once any target string is confirmed in tune, `Auto` identification is switched back on.
 - The last tuning reading stays visible briefly while a note decays, and a green check marks strings held in tune.
 - The corresponding headstock tuning peg is highlighted while tuning; reference playback highlights only its peg while the tone is sounding.
 - The string buttons show target pitches such as `E2 A2 D3 G3 B3 E4`, positioned beside their matching headstock tuning machines.
@@ -209,4 +210,4 @@ The app uses the Web Audio API for timing and synthesized sounds. Chord playback
 
 The chord window is deliberately limited to four cards during playback. For long pieces, the visible window advances around the active measure so the UI remains stable and readable.
 
-Current version: `v1.035`
+Current version: `v1.036`
