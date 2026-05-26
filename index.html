@@ -3,17 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chord Strumming Trainer v1.029</title>
+    <title>Chord Strumming Trainer v1.031</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="app-shell">
+    <main class="app-shell" id="appShell">
       <section class="metronome-panel" aria-label="Strumming metronome">
         <header class="topbar">
           <div>
             <p class="eyebrow">
               Chord Strumming Trainer
-              <a class="version-inline" href="https://github.com/techtony2018/Chord-Strumming-Trainer#readme" target="_blank" rel="noreferrer">v1.029</a>
+              <a class="version-inline" href="https://github.com/techtony2018/Chord-Strumming-Trainer#readme" target="_blank" rel="noreferrer">v1.031</a>
             </p>
           </div>
         </header>
@@ -22,15 +22,67 @@
           <input id="tempoSlider" class="tempo-slider-inline" type="range" min="40" max="180" value="126" />
           <button class="step-button" id="tempoDown" type="button" aria-label="Decrease tempo">-</button>
           <div class="tempo-readout">
-            <output id="tempoValue" for="tempoSlider" title="Double-click to reset tempo to 126 BPM">126</output>
+            <output id="tempoValue" for="tempoSlider" role="button" tabindex="0" title="Click to step tempo by 20 BPM. Double-click to reset to 126 BPM." aria-label="Tempo 126 BPM. Click to step by 20 BPM. Double-click to reset to 126 BPM.">126</output>
             <span>BPM</span>
           </div>
           <button class="step-button" id="tempoUp" type="button" aria-label="Increase tempo">+</button>
-          <button class="icon-button" id="tapTempoButton" type="button" title="Step tempo by 20 BPM" aria-label="Step tempo by 20 BPM">
-            <span aria-hidden="true">TAP</span>
+          <button class="icon-button tuner-launch-button" id="tunerToggleButton" type="button" title="Open guitar tuner" aria-label="Open guitar tuner" aria-expanded="false" aria-controls="tunerPanel">
+            <span class="tuning-fork-icon" id="tunerToggleIcon" aria-hidden="true"></span>
           </button>
         </section>
 
+        <section class="tuner-panel" id="tunerPanel" aria-label="Guitar tuner" hidden>
+          <div class="label-actions">
+            <label for="tuningPreset">Guitar tuner</label>
+            <button class="tuner-power-button" id="retuneButton" type="button">Retune</button>
+          </div>
+          <div class="tuner-options">
+            <select id="tuningPreset" aria-label="Tuning preset">
+              <option value="standard" selected>Standard - E A D G B E</option>
+              <option value="drop-d">Drop D - D A D G B E</option>
+              <option value="open-g">Open G - D G D G B D</option>
+              <option value="half-step">Half step down - Eb Ab Db Gb Bb Eb</option>
+            </select>
+          </div>
+          <div class="tuner-reading">
+            <strong class="tuner-note" id="tunerDetectedNote">--</strong>
+            <div class="tuner-target">
+              <div class="tuner-target-heading">
+                <span id="tunerTargetLabel">Target E2</span>
+                <label class="mini-toggle tuner-auto-toggle">
+                  <input id="tunerAutoToggle" type="checkbox" checked />
+                  <span>Auto</span>
+                </label>
+              </div>
+              <output id="tunerCents" aria-live="polite">Microphone off</output>
+            </div>
+          </div>
+          <div class="tuner-meter" aria-hidden="true">
+            <span class="tuner-meter-track"></span>
+            <span class="tuner-needle" id="tunerNeedle"></span>
+          </div>
+          <div class="tuner-meter-labels" aria-hidden="true">
+            <span>Flat</span>
+            <span>In tune</span>
+            <span>Sharp</span>
+          </div>
+          <div class="tuner-input" aria-label="Microphone input level">
+            <div class="tuner-input-label">
+              <span>Input</span>
+              <output id="tunerInputLevel" aria-live="polite">Off</output>
+            </div>
+            <span class="tuner-input-track" aria-hidden="true">
+              <span class="tuner-input-fill" id="tunerInputFill"></span>
+            </span>
+          </div>
+          <div class="tuner-strings" id="tunerStrings" aria-label="Target guitar strings"></div>
+          <div class="tuner-footer">
+            <button class="tuner-tone-button" id="tunerToneButton" type="button" title="Play reference tone">Tone</button>
+            <p class="tuner-status" id="tunerStatus" aria-live="polite">Microphone off</p>
+          </div>
+        </section>
+
+        <div class="trainer-view" id="trainerView">
         <section class="beat-display" aria-label="Beat display">
           <div class="count-readout">
             <div class="pulse-ring idle" id="pulseRing" role="button" tabindex="0" aria-label="Start">
@@ -82,10 +134,11 @@
           <button class="primary-button ready" id="playButton" type="button">Start</button>
           <button class="secondary-button" id="resetButton" type="button">Reset</button>
         </section>
+        </div>
 
       </section>
 
-      <aside class="control-panel" aria-label="Metronome settings">
+      <aside class="control-panel" id="controlPanel" aria-label="Metronome settings">
         <section class="control-group">
           <label for="patternSelect">Pattern</label>
           <select id="patternSelect"></select>
@@ -175,6 +228,7 @@
             <option value="silent-8">Drop every 8th bar</option>
           </select>
         </section>
+
       </aside>
     </main>
 

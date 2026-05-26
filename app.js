@@ -50,6 +50,8 @@ const STROKE_META = {
   R: { label: "Rest", glyph: "-", className: "rest", frequency: 0, duration: 0 },
 };
 
+const CHORD_LONG_PRESS_MS = 450;
+
 const CHORD_LIBRARY = {
   C: [
     { frets: ["x", 3, 2, 0, 1, 0], notes: ["C3", "E3", "G3", "C4", "E4"] },
@@ -132,6 +134,43 @@ const NOTE_OFFSETS = {
 
 const DEFAULT_TEMPO = 126;
 const NEUTRAL_ACCENT_LEVEL = 1;
+const TUNER_MIN_SIGNAL_LEVEL = 0.00008;
+const TUNER_READING_HOLD_MS = 3000;
+const TUNER_IN_TUNE_CONFIRM_MS = 450;
+const TUNING_PRESETS = {
+  standard: [
+    { label: "E", note: "E2", string: "6" },
+    { label: "A", note: "A2", string: "5" },
+    { label: "D", note: "D3", string: "4" },
+    { label: "G", note: "G3", string: "3" },
+    { label: "B", note: "B3", string: "2" },
+    { label: "E", note: "E4", string: "1" },
+  ],
+  "drop-d": [
+    { label: "D", note: "D2", string: "6" },
+    { label: "A", note: "A2", string: "5" },
+    { label: "D", note: "D3", string: "4" },
+    { label: "G", note: "G3", string: "3" },
+    { label: "B", note: "B3", string: "2" },
+    { label: "E", note: "E4", string: "1" },
+  ],
+  "open-g": [
+    { label: "D", note: "D2", string: "6" },
+    { label: "G", note: "G2", string: "5" },
+    { label: "D", note: "D3", string: "4" },
+    { label: "G", note: "G3", string: "3" },
+    { label: "B", note: "B3", string: "2" },
+    { label: "D", note: "D4", string: "1" },
+  ],
+  "half-step": [
+    { label: "Eb", note: "Eb2", string: "6" },
+    { label: "Ab", note: "Ab2", string: "5" },
+    { label: "Db", note: "Db3", string: "4" },
+    { label: "Gb", note: "Gb3", string: "3" },
+    { label: "Bb", note: "Bb3", string: "2" },
+    { label: "Eb", note: "Eb4", string: "1" },
+  ],
+};
 
 const state = {
   audio: null,
@@ -158,15 +197,41 @@ const state = {
   visualTimers: [],
   playGeneration: 0,
   counterClickTimer: 0,
+  tempoClickTimer: 0,
+  tuner: {
+    active: false,
+    starting: false,
+    analyser: null,
+    monitorGain: null,
+    buffer: null,
+    source: null,
+    stream: null,
+    frame: 0,
+    preset: "standard",
+    selectedIndex: 0,
+    auto: true,
+    lastSignalAt: 0,
+    smoothedFrequency: null,
+    noiseFloor: TUNER_MIN_SIGNAL_LEVEL,
+    inTuneIndex: -1,
+    inTuneSince: 0,
+    tunedStrings: new Set(),
+    requestId: 0,
+  },
 };
 
 const els = {
+  appShell: document.querySelector("#appShell"),
   tempoValue: document.querySelector("#tempoValue"),
   annotationLabel: document.querySelector("#annotationLabel"),
   tempoSlider: document.querySelector("#tempoSlider"),
   tempoDown: document.querySelector("#tempoDown"),
   tempoUp: document.querySelector("#tempoUp"),
-  tapTempoButton: document.querySelector("#tapTempoButton"),
+  tunerToggleButton: document.querySelector("#tunerToggleButton"),
+  tunerToggleIcon: document.querySelector("#tunerToggleIcon"),
+  trainerView: document.querySelector("#trainerView"),
+  tempoStrip: document.querySelector(".tempo-strip"),
+  controlPanel: document.querySelector("#controlPanel"),
   playButton: document.querySelector("#playButton"),
   resetButton: document.querySelector("#resetButton"),
   pulseRing: document.querySelector("#pulseRing"),
@@ -207,6 +272,19 @@ const els = {
   accentToggle: document.querySelector("#accentToggle"),
   countToggle: document.querySelector("#countToggle"),
   practiceMode: document.querySelector("#practiceMode"),
+  retuneButton: document.querySelector("#retuneButton"),
+  tuningPreset: document.querySelector("#tuningPreset"),
+  tunerAutoToggle: document.querySelector("#tunerAutoToggle"),
+  tunerDetectedNote: document.querySelector("#tunerDetectedNote"),
+  tunerTargetLabel: document.querySelector("#tunerTargetLabel"),
+  tunerCents: document.querySelector("#tunerCents"),
+  tunerNeedle: document.querySelector("#tunerNeedle"),
+  tunerInputLevel: document.querySelector("#tunerInputLevel"),
+  tunerInputFill: document.querySelector("#tunerInputFill"),
+  tunerStrings: document.querySelector("#tunerStrings"),
+  tunerToneButton: document.querySelector("#tunerToneButton"),
+  tunerStatus: document.querySelector("#tunerStatus"),
+  tunerPanel: document.querySelector("#tunerPanel"),
 };
 
 function normalizePattern(input, targetLength) {
@@ -279,6 +357,357 @@ function noteToFrequency(note) {
   const [, pitch, octaveText] = match;
   const semitoneFromA4 = NOTE_OFFSETS[pitch] + (Number(octaveText) - 4) * 12;
   return 440 * 2 ** (semitoneFromA4 / 12);
+}
+
+function tunerStrings() {
+  return TUNING_PRESETS[state.tuner.preset] ?? TUNING_PRESETS.standard;
+}
+
+function selectedTunerString() {
+  return tunerStrings()[state.tuner.selectedIndex] ?? tunerStrings()[0];
+}
+
+function centsFromTarget(frequency, targetFrequency) {
+  return 1200 * Math.log2(frequency / targetFrequency);
+}
+
+function pitchNameForFrequency(frequency) {
+  const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const midi = Math.round(69 + 12 * Math.log2(frequency / 440));
+  return `${names[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+}
+
+function closestTunerString(frequency) {
+  return tunerStrings().reduce(
+    (closest, string, index) => {
+      const cents = Math.abs(centsFromTarget(frequency, noteToFrequency(string.note)));
+      return cents < closest.cents ? { index, cents } : closest;
+    },
+    { index: 0, cents: Infinity },
+  ).index;
+}
+
+function resetTunerReading(message = "Microphone off") {
+  const target = selectedTunerString();
+  els.tunerDetectedNote.textContent = "--";
+  els.tunerTargetLabel.textContent = `Target ${target.note}`;
+  els.tunerCents.textContent = message;
+  els.tunerNeedle.style.setProperty("--needle-position", "50%");
+  els.tunerNeedle.classList.remove("in-tune");
+  if (message === "Microphone off") state.tuner.smoothedFrequency = null;
+}
+
+function updateTunerInputLevel(level = 0) {
+  const decibels = level > 0 ? 20 * Math.log10(level) : -72;
+  const strength = Math.max(0, Math.min(1, (decibels + 72) / 48));
+  els.tunerInputLevel.textContent = state.tuner.active ? `${Math.round(decibels)} dB` : "Off";
+  els.tunerInputFill.style.width = `${Math.round(strength * 100)}%`;
+  const threshold = Math.max(TUNER_MIN_SIGNAL_LEVEL, state.tuner.noiseFloor * 2.4);
+  els.tunerInputFill.classList.toggle("active", level >= threshold);
+}
+
+function resetTunedStrings() {
+  clearTunerConfirmation();
+  state.tuner.tunedStrings.clear();
+}
+
+function clearTunerConfirmation() {
+  state.tuner.inTuneIndex = -1;
+  state.tuner.inTuneSince = 0;
+}
+
+function stringOrdinal(stringNumber) {
+  if (stringNumber === "1") return "1st";
+  if (stringNumber === "2") return "2nd";
+  if (stringNumber === "3") return "3rd";
+  return `${stringNumber}th`;
+}
+
+function renderTunerStrings() {
+  els.tunerStrings.innerHTML = "";
+  tunerStrings().forEach((string, index) => {
+    const button = document.createElement("button");
+    const tuned = state.tuner.tunedStrings.has(index);
+    button.className = `tuner-string-button${index === state.tuner.selectedIndex ? " selected" : ""}${tuned ? " tuned" : ""}`;
+    button.type = "button";
+    button.dataset.index = String(index);
+    button.setAttribute("aria-label", `Tune ${stringOrdinal(string.string)} string to ${string.note}${tuned ? ", tuned" : ""}`);
+    button.innerHTML = `<strong>${string.note}</strong>`;
+    button.addEventListener("click", () => {
+      state.tuner.selectedIndex = index;
+      state.tuner.auto = false;
+      els.tunerAutoToggle.checked = false;
+      renderTunerStrings();
+      resetTunerReading(state.tuner.active ? "Waiting for a pluck" : "Microphone off");
+    });
+    els.tunerStrings.append(button);
+  });
+  els.tunerTargetLabel.textContent = `Target ${selectedTunerString().note}`;
+}
+
+function updateTunedStringProgress(isInTune) {
+  const now = performance.now();
+  const index = state.tuner.selectedIndex;
+  if (!isInTune) {
+    clearTunerConfirmation();
+    return;
+  }
+
+  if (state.tuner.inTuneIndex !== index) {
+    state.tuner.inTuneIndex = index;
+    state.tuner.inTuneSince = now;
+    return;
+  }
+
+  if (now - state.tuner.inTuneSince >= TUNER_IN_TUNE_CONFIRM_MS && !state.tuner.tunedStrings.has(index)) {
+    state.tuner.tunedStrings.add(index);
+    renderTunerStrings();
+  }
+}
+
+function showTunerReading(frequency) {
+  if (state.tuner.auto) {
+    const closestIndex = closestTunerString(frequency);
+    if (closestIndex !== state.tuner.selectedIndex) {
+      state.tuner.selectedIndex = closestIndex;
+      renderTunerStrings();
+    }
+  }
+
+  const target = selectedTunerString();
+  const cents = centsFromTarget(frequency, noteToFrequency(target.note));
+  const clampedCents = Math.max(-50, Math.min(50, cents));
+  const isInTune = Math.abs(cents) <= 5;
+  const stateText = isInTune ? "In tune" : cents < 0 ? "Flat" : "Sharp";
+  const signedCents = Math.round(cents);
+
+  updateTunedStringProgress(isInTune);
+  els.tunerDetectedNote.textContent = pitchNameForFrequency(frequency);
+  els.tunerTargetLabel.textContent = `Target ${target.note}`;
+  els.tunerCents.textContent = isInTune ? "In tune" : `${signedCents > 0 ? "+" : ""}${signedCents} cents - ${stateText}`;
+  els.tunerNeedle.style.setProperty("--needle-position", `${50 + clampedCents}%`);
+  els.tunerNeedle.classList.toggle("in-tune", isInTune);
+  els.tunerStrings.querySelectorAll(".tuner-string-button").forEach((button, index) => {
+    button.classList.toggle("detected", index === state.tuner.selectedIndex && isInTune);
+  });
+}
+
+function signalLevel(buffer) {
+  let energy = 0;
+  for (let index = 0; index < buffer.length; index += 1) {
+    energy += buffer[index] * buffer[index];
+  }
+  return Math.sqrt(energy / buffer.length);
+}
+
+function detectPitch(buffer, sampleRate, level = signalLevel(buffer), threshold = TUNER_MIN_SIGNAL_LEVEL) {
+  if (level < threshold) return null;
+
+  const minimumPeriod = Math.floor(sampleRate / 400);
+  const maximumPeriod = Math.min(Math.floor(sampleRate / 60), Math.floor(buffer.length / 2));
+  const comparisonLength = buffer.length - maximumPeriod;
+  const yin = new Float32Array(maximumPeriod + 1);
+
+  for (let period = 1; period <= maximumPeriod; period += 1) {
+    let difference = 0;
+    for (let index = 0; index < comparisonLength; index += 1) {
+      const delta = buffer[index] - buffer[index + period];
+      difference += delta * delta;
+    }
+    yin[period] = difference;
+  }
+
+  let runningSum = 0;
+  yin[0] = 1;
+  for (let period = 1; period <= maximumPeriod; period += 1) {
+    runningSum += yin[period];
+    yin[period] = runningSum ? (yin[period] * period) / runningSum : 1;
+  }
+
+  let bestPeriod = -1;
+  let bestValue = Infinity;
+  for (let period = minimumPeriod; period <= maximumPeriod; period += 1) {
+    if (yin[period] < bestValue) {
+      bestValue = yin[period];
+      bestPeriod = period;
+    }
+    if (yin[period] < 0.14) {
+      while (period < maximumPeriod && yin[period + 1] < yin[period]) period += 1;
+      bestPeriod = period;
+      break;
+    }
+  }
+
+  if (bestPeriod < 0 || bestValue > 0.32) return null;
+
+  const previous = yin[bestPeriod - 1] ?? yin[bestPeriod];
+  const center = yin[bestPeriod];
+  const next = yin[bestPeriod + 1] ?? yin[bestPeriod];
+  const divisor = 2 * (previous - 2 * center + next);
+  const adjustment = divisor ? (previous - next) / divisor : 0;
+  return sampleRate / (bestPeriod + adjustment);
+}
+
+function runTunerFrame() {
+  if (!state.tuner.active) return;
+
+  state.tuner.analyser.getFloatTimeDomainData(state.tuner.buffer);
+  const level = signalLevel(state.tuner.buffer);
+  const canLearnNoise = !state.tuner.smoothedFrequency || performance.now() - state.tuner.lastSignalAt > TUNER_READING_HOLD_MS;
+  if (canLearnNoise && level < 0.002) {
+    state.tuner.noiseFloor = state.tuner.noiseFloor * 0.98 + level * 0.02;
+  }
+  const hasLiveReading =
+    state.tuner.smoothedFrequency && performance.now() - state.tuner.lastSignalAt <= TUNER_READING_HOLD_MS;
+  const noiseMultiplier = hasLiveReading ? 1.2 : 2.4;
+  const threshold = Math.max(TUNER_MIN_SIGNAL_LEVEL, state.tuner.noiseFloor * noiseMultiplier);
+  updateTunerInputLevel(level);
+  const frequency = detectPitch(state.tuner.buffer, state.audio.sampleRate, level, threshold);
+  if (frequency) {
+    state.tuner.lastSignalAt = performance.now();
+    const previous = state.tuner.smoothedFrequency;
+    const isStableNote = previous && Math.abs(centsFromTarget(frequency, previous)) < 80;
+    state.tuner.smoothedFrequency = isStableNote ? previous * 0.72 + frequency * 0.28 : frequency;
+    showTunerReading(state.tuner.smoothedFrequency);
+    els.tunerStatus.textContent = "Reading input";
+  } else if (level >= threshold) {
+    clearTunerConfirmation();
+    state.tuner.lastSignalAt = performance.now();
+    els.tunerStatus.textContent = "Sound heard - finding pitch";
+  } else if (state.tuner.smoothedFrequency && performance.now() - state.tuner.lastSignalAt <= TUNER_READING_HOLD_MS) {
+    clearTunerConfirmation();
+    els.tunerStatus.textContent = "Holding last reading";
+  } else if (performance.now() - state.tuner.lastSignalAt > TUNER_READING_HOLD_MS) {
+    clearTunerConfirmation();
+    state.tuner.smoothedFrequency = null;
+    resetTunerReading("Waiting for a pluck");
+    els.tunerStatus.textContent = "Waiting for a pluck";
+  }
+
+  state.tuner.frame = window.requestAnimationFrame(runTunerFrame);
+}
+
+function stopTuner() {
+  state.tuner.requestId += 1;
+  if (state.tuner.frame) window.cancelAnimationFrame(state.tuner.frame);
+  state.tuner.source?.disconnect();
+  state.tuner.analyser?.disconnect();
+  state.tuner.monitorGain?.disconnect();
+  state.tuner.stream?.getTracks().forEach((track) => track.stop());
+  state.tuner.active = false;
+  state.tuner.analyser = null;
+  state.tuner.monitorGain = null;
+  state.tuner.source = null;
+  state.tuner.stream = null;
+  state.tuner.frame = 0;
+  state.tuner.starting = false;
+  els.retuneButton.disabled = false;
+  els.tunerStatus.textContent = "Microphone off";
+  updateTunerInputLevel();
+  resetTunerReading();
+}
+
+async function startTuner() {
+  if (state.tuner.active || state.tuner.starting) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    els.tunerStatus.textContent = "Microphone unavailable";
+    return;
+  }
+
+  if (state.isPlaying) pausePlayback();
+  ensureAudio();
+  const requestId = ++state.tuner.requestId;
+  state.tuner.starting = true;
+  els.retuneButton.disabled = true;
+  els.tunerStatus.textContent = "Starting microphone";
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { autoGainControl: true, echoCancellation: false, noiseSuppression: false },
+    });
+    if (requestId !== state.tuner.requestId || els.tunerPanel.hidden) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    const analyser = state.audio.createAnalyser();
+    analyser.fftSize = 8192;
+    analyser.smoothingTimeConstant = 0.1;
+    const monitorGain = state.audio.createGain();
+    monitorGain.gain.value = 0;
+    state.tuner.stream = stream;
+    state.tuner.source = state.audio.createMediaStreamSource(stream);
+    state.tuner.analyser = analyser;
+    state.tuner.monitorGain = monitorGain;
+    state.tuner.buffer = new Float32Array(analyser.fftSize);
+    state.tuner.source.connect(analyser);
+    // Pull microphone processing in Firefox without sending live mic audio to speakers.
+    analyser.connect(monitorGain).connect(state.audio.destination);
+    if (state.audio.state !== "running") state.audio.resume().catch(() => {});
+    state.tuner.active = true;
+    state.tuner.lastSignalAt = performance.now();
+    state.tuner.smoothedFrequency = null;
+    state.tuner.noiseFloor = TUNER_MIN_SIGNAL_LEVEL;
+    resetTunedStrings();
+    renderTunerStrings();
+    els.retuneButton.disabled = false;
+    els.tunerStatus.textContent = "Waiting for a pluck";
+    resetTunerReading("Waiting for a pluck");
+    updateTunerInputLevel();
+    runTunerFrame();
+  } catch {
+    if (requestId === state.tuner.requestId && !els.tunerPanel.hidden) {
+      els.tunerStatus.textContent = "Microphone permission needed";
+      resetTunerReading("Microphone permission needed");
+      els.retuneButton.disabled = false;
+    }
+  } finally {
+    if (requestId === state.tuner.requestId) state.tuner.starting = false;
+  }
+}
+
+function setTunerPanel(open) {
+  els.tunerPanel.hidden = !open;
+  els.trainerView.hidden = open;
+  els.controlPanel.hidden = open;
+  els.appShell.classList.toggle("tuner-mode", open);
+  els.tempoStrip.classList.toggle("tuner-mode", open);
+  els.tunerToggleButton.classList.toggle("active", open);
+  els.tunerToggleButton.setAttribute("aria-expanded", String(open));
+  els.tunerToggleIcon.className = open ? "chord-return-icon" : "tuning-fork-icon";
+  els.tunerToggleButton.setAttribute("aria-label", open ? "Return to chord trainer" : "Open guitar tuner");
+  els.tunerToggleButton.title = open ? "Return to chord trainer" : "Open guitar tuner";
+  if (open) {
+    startTuner();
+  } else {
+    stopTuner();
+  }
+}
+
+function playTunerReferenceTone() {
+  ensureAudio();
+  const time = state.audio.currentTime;
+  const targetFrequency = noteToFrequency(selectedTunerString().note);
+  const oscillator = state.audio.createOscillator();
+  const overtone = state.audio.createOscillator();
+  const toneGain = state.audio.createGain();
+  const overtoneGain = state.audio.createGain();
+
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(targetFrequency, time);
+  overtone.type = "sine";
+  overtone.frequency.setValueAtTime(targetFrequency * 2, time);
+  toneGain.gain.setValueAtTime(0.0001, time);
+  toneGain.gain.exponentialRampToValueAtTime(0.1, time + 0.015);
+  toneGain.gain.exponentialRampToValueAtTime(0.0001, time + 1.2);
+  overtoneGain.gain.setValueAtTime(0.0001, time);
+  overtoneGain.gain.exponentialRampToValueAtTime(0.022, time + 0.015);
+  overtoneGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.82);
+  oscillator.connect(toneGain).connect(state.gain);
+  overtone.connect(overtoneGain).connect(state.gain);
+  oscillator.start(time);
+  overtone.start(time);
+  oscillator.stop(time + 1.22);
+  overtone.stop(time + 0.84);
 }
 
 function notesForChord(chordName) {
@@ -391,7 +820,11 @@ function fitAccentPattern(previousPattern) {
 
 function syncTempo(value) {
   state.tempo = Math.min(180, Math.max(40, Math.round(Number(value))));
-  els.tempoValue.value = state.tempo;
+  els.tempoValue.value = String(state.tempo).padStart(3, "0");
+  els.tempoValue.setAttribute(
+    "aria-label",
+    `Tempo ${state.tempo} BPM. Click to step by 20 BPM. Double-click to reset to ${DEFAULT_TEMPO} BPM.`,
+  );
   els.tempoSlider.value = state.tempo;
 }
 
@@ -532,8 +965,9 @@ function createChordCard(chordName, index) {
   card.type = "button";
   card.dataset.index = String(index);
   card.dataset.chord = chordName;
-  card.setAttribute("aria-label", `Measure ${index + 1}: ${chordName}`);
-  if (voicingCount > 1) card.title = `Click to switch ${chordName} fingering`;
+  card.setAttribute("aria-label", `Measure ${index + 1}: ${chordName}. Hold to hear chord.`);
+  card.title =
+    voicingCount > 1 ? `Tap to switch ${chordName} fingering. Hold to hear chord.` : `Hold to hear ${chordName}.`;
   card.innerHTML = `
     <div class="measure-number">${annotation ? escapeHtml(annotation) : `Measure ${index + 1}`}</div>
     <div class="chord-name-row">
@@ -542,7 +976,7 @@ function createChordCard(chordName, index) {
     </div>
     ${renderChordDiagram(chordName)}
   `;
-  card.addEventListener("click", () => cycleChordVoicing(chordName));
+  bindChordPress(card, () => chordName, () => cycleChordVoicing(chordName));
   return card;
 }
 
@@ -754,10 +1188,7 @@ function scheduleTone(time, token, accentLevel, isSilent) {
   osc.stop(time + duration + 0.01);
 }
 
-function scheduleChord(time, token, isSilent, accentLevel) {
-  if (isSilent || state.countInRemaining > 0 || token === "R" || accentLevel === 0 || els.chordMuteToggle.checked) return;
-
-  const chordName = state.chordSequence[state.barIndex % state.chordSequence.length] ?? "C";
+function scheduleNamedChord(chordName, time, token, accentLevel) {
   const chordNotes = notesForChord(chordName);
   const volume = Number(els.chordVolumeSlider.value) / 100;
   if (volume <= 0) return;
@@ -778,6 +1209,55 @@ function scheduleChord(time, token, isSilent, accentLevel) {
   });
 
   schedulePickNoise(time, volume * (accentLevel === 2 ? 0.026 : 0.016));
+}
+
+function scheduleChord(time, token, isSilent, accentLevel) {
+  if (isSilent || state.countInRemaining > 0 || token === "R" || accentLevel === 0 || els.chordMuteToggle.checked) return;
+
+  const chordName = state.chordSequence[state.barIndex % state.chordSequence.length] ?? "C";
+  scheduleNamedChord(chordName, time, token, accentLevel);
+}
+
+function previewChord(chordName) {
+  if (els.chordMuteToggle.checked || Number(els.chordVolumeSlider.value) <= 0) return;
+  ensureAudio();
+  scheduleNamedChord(chordName, state.audio.currentTime + 0.02, "D", 2);
+}
+
+function bindChordPress(element, chordName, onTap) {
+  let pressTimer = 0;
+  let consumedTap = false;
+
+  const finishPress = () => {
+    window.clearTimeout(pressTimer);
+    pressTimer = 0;
+    element.classList.remove("previewing");
+  };
+
+  element.addEventListener("pointerdown", (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    consumedTap = false;
+    pressTimer = window.setTimeout(() => {
+      consumedTap = true;
+      element.classList.add("previewing");
+      previewChord(chordName());
+    }, CHORD_LONG_PRESS_MS);
+  });
+  element.addEventListener("pointerup", finishPress);
+  element.addEventListener("pointercancel", finishPress);
+  element.addEventListener("pointerleave", finishPress);
+  element.addEventListener("selectstart", (event) => event.preventDefault());
+  element.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  });
+  element.addEventListener("click", (event) => {
+    if (consumedTap) {
+      event.preventDefault();
+      consumedTap = false;
+      return;
+    }
+    onTap();
+  });
 }
 
 function shouldSilenceBar() {
@@ -916,7 +1396,8 @@ function updateActiveChordCard() {
   els.annotationLabel.hidden = !annotation;
   els.activeVoicing.textContent = voicingCount > 1 ? `${voicingIndex}/${voicingCount}` : "1/1";
   els.activeVoicing.hidden = voicingCount < 2;
-  els.activeChordCard.title = voicingCount > 1 ? `Click to switch ${chordName} fingering` : "";
+  els.activeChordCard.title =
+    voicingCount > 1 ? `Tap to switch ${chordName} fingering. Hold to hear chord.` : `Hold to hear ${chordName}.`;
   els.activeChordDiagram.innerHTML = renderChordDiagram(chordName);
 
   const nextIndex = (chordIndex + 1) % Math.max(1, state.chordSequence.length);
@@ -927,11 +1408,15 @@ function updateActiveChordCard() {
   els.nextChordName.textContent = nextChordName;
   els.nextVoicing.textContent = nextVoicingCount > 1 ? `${nextVoicingIndex}/${nextVoicingCount}` : "1/1";
   els.nextVoicing.hidden = nextVoicingCount < 2;
-  els.nextChordCard.title = nextVoicingCount > 1 ? `Click to switch ${nextChordName} fingering` : "";
+  els.nextChordCard.title =
+    nextVoicingCount > 1
+      ? `Tap to switch ${nextChordName} fingering. Hold to hear chord.`
+      : `Hold to hear ${nextChordName}.`;
   els.nextChordDiagram.innerHTML = renderChordDiagram(nextChordName);
 }
 
 function startPlayback({ resetProgress = false } = {}) {
+  if (state.tuner.active) stopTuner();
   ensureAudio();
   state.isPlaying = true;
   state.hasStarted = true;
@@ -1073,10 +1558,23 @@ function loadChordSequenceFile(file) {
 
 function bindEvents() {
   els.tempoSlider.addEventListener("input", (event) => syncTempo(event.target.value));
-  els.tempoValue.addEventListener("dblclick", () => syncTempo(DEFAULT_TEMPO));
+  els.tempoValue.addEventListener("click", () => {
+    window.clearTimeout(state.tempoClickTimer);
+    state.tempoClickTimer = window.setTimeout(stepTempo, 220);
+  });
+  els.tempoValue.addEventListener("dblclick", () => {
+    window.clearTimeout(state.tempoClickTimer);
+    syncTempo(DEFAULT_TEMPO);
+  });
+  els.tempoValue.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      stepTempo();
+    }
+  });
   els.tempoDown.addEventListener("click", () => syncTempo(state.tempo - 1));
   els.tempoUp.addEventListener("click", () => syncTempo(state.tempo + 1));
-  els.tapTempoButton.addEventListener("click", stepTempo);
+  els.tunerToggleButton.addEventListener("click", () => setTunerPanel(els.tunerPanel.hidden));
   els.playButton.addEventListener("click", togglePlayback);
   els.pulseRing.addEventListener("click", handleCounterClick);
   els.pulseRing.addEventListener("dblclick", (event) => {
@@ -1098,15 +1596,23 @@ function bindEvents() {
     loadChordSequenceFile(event.target.files?.[0]);
     event.target.value = "";
   });
-  els.activeChordCard.addEventListener("click", () => {
-    const chordName = state.chordSequence[state.barIndex % Math.max(1, state.chordSequence.length)] ?? "C";
-    cycleChordVoicing(chordName);
-  });
-  els.nextChordCard.addEventListener("click", () => {
-    const nextIndex = (state.barIndex + 1) % Math.max(1, state.chordSequence.length);
-    const chordName = state.chordSequence[nextIndex] ?? "C";
-    cycleChordVoicing(chordName);
-  });
+  bindChordPress(
+    els.activeChordCard,
+    () => state.chordSequence[state.barIndex % Math.max(1, state.chordSequence.length)] ?? "C",
+    () => {
+      const chordName = state.chordSequence[state.barIndex % Math.max(1, state.chordSequence.length)] ?? "C";
+      cycleChordVoicing(chordName);
+    },
+  );
+  bindChordPress(
+    els.nextChordCard,
+    () => state.chordSequence[(state.barIndex + 1) % Math.max(1, state.chordSequence.length)] ?? "C",
+    () => {
+      const nextIndex = (state.barIndex + 1) % Math.max(1, state.chordSequence.length);
+      const chordName = state.chordSequence[nextIndex] ?? "C";
+      cycleChordVoicing(chordName);
+    },
+  );
   els.patternSelect.addEventListener("change", (event) => loadPreset(event.target.value));
 
   els.beatsSelect.addEventListener("change", (event) => {
@@ -1121,6 +1627,23 @@ function bindEvents() {
 
   els.customPattern.addEventListener("input", applyPatternFromControls);
   els.chordSequence.addEventListener("input", applyChordSequenceFromControls);
+  els.retuneButton.addEventListener("click", () => {
+    resetTunedStrings();
+    renderTunerStrings();
+  });
+  els.tunerToneButton.addEventListener("click", playTunerReferenceTone);
+  els.tuningPreset.addEventListener("change", (event) => {
+    state.tuner.preset = event.target.value;
+    state.tuner.selectedIndex = 0;
+    resetTunedStrings();
+    renderTunerStrings();
+    resetTunerReading(state.tuner.active ? "Waiting for a pluck" : "Microphone off");
+  });
+  els.tunerAutoToggle.addEventListener("change", (event) => {
+    state.tuner.auto = event.target.checked;
+    renderTunerStrings();
+    resetTunerReading(state.tuner.active ? "Waiting for a pluck" : "Microphone off");
+  });
 }
 
 function init() {
@@ -1128,6 +1651,9 @@ function init() {
   syncTempo(state.tempo);
   loadPreset(PATTERNS[0].id);
   updateTransportState();
+  renderTunerStrings();
+  resetTunerReading();
+  setTunerPanel(false);
   bindEvents();
 }
 
